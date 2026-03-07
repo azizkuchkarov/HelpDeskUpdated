@@ -1,0 +1,39 @@
+[
+  
+  { "name": "Tashkent", "countryName": "Uzbekistan", "display": "Tashkent, Uzbekistan" },
+  { "name": "Samarkand", "countryName": "Uzbekistan", "display": "Samarkand, Uzbekistan" },
+  { "name": "Bukhara", "countryName": "Uzbekistan", "display": "Bukhara, Uzbekistan" },
+  { "name": "Andijan", "countryName": "Uzbekistan", "display": "Andijan, Uzbekistan" },
+  { "name": "Namangan", "countryName": "Uzbekistan", "display": "Namangan, Uzbekistan" },
+  { "name": "Fergana", "countryName": "Uzbekistan", "display": "Fergana, Uzbekistan" },
+  { "name": "Nukus", "countryName": "Uzbekistan", "display": "Nukus, Uzbekistan" },
+  { "name": "Karshi", "countryName": "Uzbekistan", "display": "Karshi, Uzbekistan" },
+  { "name": "Termez", "countryName": "Uzbekistan", "display": "Termez, Uzbekistan" },
+  { "name": "Jizzakh", "countryName": "Uzbekistan", "display": "Jizzakh, Uzbekistan" },
+
+  
+  { "name": "Beijing", "countryName": "China", "display": "Beijing, China" },
+  { "name": "Shanghai", "countryName": "China", "display": "Shanghai, China" },
+  { "name": "Guangzhou", "countryName": "China", "display": "Guangzhou, China" },
+  { "name": "Shenzhen", "countryName": "China", "display": "Shenzhen, China" },
+  { "name": "Chengdu", "countryName": "China", "display": "Chengdu, China" },
+  { "name": "Wuhan", "countryName": "China", "display": "Wuhan, China" },
+  { "name": "Hangzhou", "countryName": "China", "display": "Hangzhou, China" },
+  { "name": "Xi'an", "countryName": "China", "display": "Xi'an, China" },
+
+  
+  { "name": "Berlin", "countryName": "Germany", "display": "Berlin, Germany" },
+  { "name": "Munich", "countryName": "Germany", "display": "Munich, Germany" },
+  { "name": "Paris", "countryName": "France", "display": "Paris, France" },
+  { "name": "Lyon", "countryName": "France", "display": "Lyon, France" },
+  { "name": "Madrid", "countryName": "Spain", "display": "Madrid, Spain" },
+  { "name": "Barcelona", "countryName": "Spain", "display": "Barcelona, Spain" },
+  { "name": "Rome", "countryName": "Italy", "display": "Rome, Italy" },
+  { "name": "Milan", "countryName": "Italy", "display": "Milan, Italy" },
+  { "name": "London", "countryName": "United Kingdom", "display": "London, United Kingdom" },
+  { "name": "Warsaw", "countryName": "Poland", "display": "Warsaw, Poland" },
+  { "name": "Vienna", "countryName": "Austria", "display": "Vienna, Austria" },
+  { "name": "Amsterdam", "countryName": "Netherlands", "display": "Amsterdam, Netherlands" }
+]
+
+

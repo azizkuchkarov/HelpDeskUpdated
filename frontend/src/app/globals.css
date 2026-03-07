@@ -1,0 +1,266 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --sidebar-width: 16rem;
+  --safe-top: env(safe-area-inset-top, 0);
+  --safe-bottom: env(safe-area-inset-bottom, 0);
+  /* Legacy vars for pages still using inline styles */
+  --jira-border: #e2e8f0;
+  --jira-bg: #f1f5f9;
+  --jira-bg-elevated: #ffffff;
+  --jira-text-secondary: #64748b;
+  --jira-text-muted: #94a3b8;
+  --jira-accent: #136cb0;
+  --jira-danger: #dc2626;
+  --jira-radius: 0.5rem;
+  --jira-radius-lg: 1rem;
+  --jira-shadow-lg: 0 4px 6px -1px rgb(0 0 0 / 0.08), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+  --border: #e2e8f0;
+  --bg-primary: #ffffff;
+  --bg-tertiary: #f8fafc;
+  --text-secondary: #64748b;
+  --danger: #dc2626;
+  --accent: #136cb0;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Drawer & modal animations */
+@keyframes drawer-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes drawer-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.drawer-backdrop {
+  animation: drawer-backdrop-in 0.2s ease-out;
+}
+
+.drawer-panel {
+  animation: drawer-panel-in 0.25s ease-out;
+}
+
+.modal-backdrop {
+  animation: modal-backdrop-in 0.2s ease-out;
+}
+
+.drawer-panel {
+  @apply fixed right-0 top-0 z-[100] flex h-full max-h-dvh w-full flex-col overflow-y-auto border-l border-slate-200 bg-white shadow-sidebar-right;
+  animation: drawer-panel-in 0.25s ease-out;
+  padding-bottom: var(--safe-bottom);
+}
+@media (min-width: 640px) {
+  .drawer-panel {
+    width: 28rem;
+    max-width: 100%;
+  }
+}
+@media (min-width: 768px) {
+  .drawer-panel {
+    width: 32rem;
+  }
+}
+
+.modal-panel {
+  @apply fixed left-1/2 top-1/2 z-[111] w-[calc(100%-24px)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-card-lg bg-white p-6 shadow-card-hover;
+}
+@media (min-width: 640px) {
+  .modal-panel {
+    max-height: 90vh;
+  }
+}
+
+/* Legacy aliases — old class names map to premium styles so other pages work */
+.jira-page {
+  @apply page-container;
+}
+.jira-page-header,
+.jira-header {
+  @apply page-header;
+}
+.jira-title,
+.jira-page-title {
+  @apply page-title;
+}
+.jira-muted {
+  @apply text-slate-500;
+}
+.btn-jira-primary {
+  @apply inline-flex items-center justify-center rounded-input bg-primary-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2;
+}
+.btn-jira-secondary {
+  @apply inline-flex items-center justify-center rounded-input border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300;
+}
+.jira-input {
+  @apply w-full rounded-input border border-slate-300 bg-white px-4 py-2.5 text-slate-900 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20;
+}
+.jira-select {
+  @apply w-full rounded-input border border-slate-300 bg-white px-4 py-2.5 text-slate-900 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20;
+}
+.jira-field-label {
+  @apply mb-1.5 block text-xs font-medium uppercase tracking-wider text-slate-500;
+}
+.jira-field-value {
+  @apply text-sm text-slate-700;
+}
+.jira-description {
+  @apply rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-700 whitespace-pre-wrap;
+}
+.jira-drawer-backdrop {
+  @apply fixed inset-0 z-[99] bg-slate-900/50 backdrop-blur-sm drawer-backdrop;
+}
+.jira-drawer {
+  @apply drawer-panel;
+}
+.jira-drawer-header {
+  @apply flex flex-shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-6 py-5;
+  padding-top: calc(1rem + var(--safe-top));
+}
+.jira-drawer-body {
+  @apply flex-1 px-6 py-5;
+}
+.jira-drawer-title {
+  @apply text-lg font-semibold text-slate-900 sm:text-xl;
+}
+.jira-drawer-meta {
+  @apply text-xs text-slate-500;
+}
+.jira-issue-list {
+  @apply overflow-x-auto rounded-card border border-slate-200 bg-white shadow-card;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+.jira-issue-list::-webkit-scrollbar {
+  height: 8px;
+}
+.jira-issue-list::-webkit-scrollbar-track {
+  @apply bg-slate-100 rounded-b-card;
+}
+.jira-issue-list::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+.jira-issue-row {
+  @apply grid cursor-pointer items-center gap-2 border-b border-slate-100 px-4 py-3 transition hover:bg-slate-50 last:border-0;
+  grid-template-columns: minmax(64px, 80px) minmax(100px, 1fr) minmax(72px, 100px) minmax(80px, 120px) minmax(80px, 140px) minmax(36px, 48px);
+}
+/* 9 columns: Key, Summary, Requester, Time, Type, Priority, Status, Closed, Car/Driver or spacer */
+.jira-issue-list--9col .jira-issue-row {
+  grid-template-columns: minmax(56px, 72px) minmax(80px, 1fr) minmax(70px, 100px) minmax(72px, 100px) minmax(64px, 88px) minmax(72px, 88px) minmax(80px, 100px) minmax(72px, 100px) minmax(72px, 120px);
+  gap: 0.5rem 0.75rem;
+}
+@media (min-width: 1024px) {
+  .jira-issue-list--9col .jira-issue-row {
+    gap: 0.5rem 1rem;
+  }
+}
+/* 7 columns: Key, Summary, Requester, Time, Priority, Status, Closed */
+.jira-issue-list--7col .jira-issue-row {
+  grid-template-columns: minmax(56px, 72px) minmax(80px, 1fr) minmax(70px, 100px) minmax(72px, 100px) minmax(72px, 88px) minmax(80px, 100px) minmax(72px, 100px);
+  gap: 0.5rem 0.75rem;
+}
+.jira-issue-row-header {
+  @apply cursor-default bg-slate-50/80 text-xs font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-50/80;
+}
+.jira-issue-key {
+  @apply text-xs font-medium text-slate-500;
+}
+.jira-issue-summary {
+  @apply min-w-0 truncate font-medium text-slate-900;
+}
+.jira-issue-meta {
+  @apply min-w-0 truncate text-xs text-slate-500;
+}
+.jira-badge {
+  @apply inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold uppercase tracking-wider;
+}
+
+/* Mobile ticket cards — stacked layout for small screens */
+.ticket-cards {
+  @apply flex flex-col gap-3 md:hidden;
+}
+.ticket-card {
+  @apply rounded-card border border-slate-200 bg-white p-4 shadow-card transition active:bg-slate-50;
+  min-height: 44px;
+}
+.ticket-card:active {
+  @apply bg-slate-50;
+}
+.ticket-card-header {
+  @apply flex flex-wrap items-center justify-between gap-2 mb-2;
+}
+.ticket-card-key {
+  @apply text-xs font-semibold text-slate-500;
+}
+.ticket-card-title {
+  @apply font-medium text-slate-900 line-clamp-2;
+}
+.ticket-card-meta {
+  @apply mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500;
+}
+.ticket-card-badges {
+  @apply mt-2 flex flex-wrap gap-2;
+}
+/* Desktop table/card container — hide cards on desktop */
+.ticket-table-wrap {
+  @apply hidden md:block overflow-x-auto rounded-card border border-slate-200 bg-white shadow-card;
+  -webkit-overflow-scrolling: touch;
+}
+.ticket-table-wrap.jira-issue-list {
+  min-width: 0;
+}
+.ticket-table-wrap::-webkit-scrollbar {
+  height: 8px;
+}
+.ticket-table-wrap::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+
+/* Page container — used across dashboard, IT, admin, etc. */
+@layer components {
+  .page-container {
+    @apply mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8 lg:py-10;
+    padding-bottom: calc(1.5rem + var(--safe-bottom));
+  }
+
+  .page-header {
+    @apply flex flex-wrap items-center justify-between gap-3 sm:gap-4 mb-5 sm:mb-8;
+  }
+
+  .page-title {
+    @apply text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl;
+  }
+
+  .page-subtitle {
+    @apply mt-1 text-sm text-slate-500 sm:text-base;
+  }
+}

@@ -1,0 +1,376 @@
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+
+export type AdminUser = {
+  id: number;
+  ldap_username: string;
+  display_name: string;
+  email: string;
+  department_id: number | null;
+  roles: { role_type: string; section: string | null }[];
+  approver_id: number | null;
+};
+
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("helpdesk_token");
+}
+
+export async function api<T>(
+  path: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(options.headers as Record<string, string>),
+  };
+  if (token) (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  } catch (e) {
+    const msg = e instanceof TypeError && e.message === "Failed to fetch"
+      ? "Cannot reach server. Check that the backend is running and NEXT_PUBLIC_API_URL is correct."
+      : (e instanceof Error ? e.message : String(e));
+    throw new Error(msg);
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || String(res.status));
+  }
+  return res.json();
+}
+
+async function uploadFileApi<T>(
+  path: string,
+  file: File
+): Promise<T> {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append("file", file);
+  const headers: HeadersInit = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      body: formData,
+      headers,
+    });
+  } catch (e) {
+    const msg = e instanceof TypeError && e.message === "Failed to fetch"
+      ? "Cannot reach server. Check that the backend is running and NEXT_PUBLIC_API_URL is correct."
+      : (e instanceof Error ? e.message : String(e));
+    throw new Error(msg);
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || String(res.status));
+  }
+  return res.json();
+}
+
+/** Fetch file from API with auth and trigger browser download (no new tab). */
+async function downloadFileApi(path: string, fileName: string): Promise<void> {
+  const token = getToken();
+  const headers: HeadersInit = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { headers });
+  } catch (e) {
+    const msg = e instanceof TypeError && e.message === "Failed to fetch"
+      ? "Cannot reach server. Check that the backend is running and NEXT_PUBLIC_API_URL is correct."
+      : (e instanceof Error ? e.message : String(e));
+    throw new Error(msg);
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || String(res.status));
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName || "download";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export const auth = {
+  login: (username: string, password: string) =>
+    api<{ access_token: string; user_id: number }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    }),
+  me: () => api<{ id: number; ldap_username: string; display_name: string; email: string; department_id: number | null; roles: { role_type: string; section: string | null }[]; approver_id: number | null }>("/auth/me"),
+};
+
+export const admin = {
+  departments: () => api<{ id: number; name: string; name_ru: string | null; name_zh: string | null; manager_id: number | null; manager_name: string | null }[]>("/admin/departments"),
+  createDepartment: (body: { name: string; name_ru?: string; name_zh?: string }) =>
+    api("/admin/departments", { method: "POST", body: JSON.stringify(body) }),
+  updateDepartment: (id: number, body: { name?: string; name_ru?: string; name_zh?: string; is_active?: boolean; manager_id?: number | null }) =>
+    api("/admin/departments/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  users: () => api<AdminUser[]>("/admin/users"),
+  setUserDepartment: (userId: number, departmentId: number | null) =>
+    api("/admin/users/set-department", { method: "POST", body: JSON.stringify({ user_id: userId, department_id: departmentId }) }),
+  setUserApprover: (userId: number, approverId: number, departmentId?: number) =>
+    api("/admin/users/set-approver", { method: "POST", body: JSON.stringify({ user_id: userId, approver_id: approverId, department_id: departmentId ?? null }) }),
+  setUserRole: (userId: number, roleType: string, section?: string) =>
+    api("/admin/users/set-role", { method: "POST", body: JSON.stringify({ user_id: userId, role_type: roleType, section: section ?? null }) }),
+  removeUserRole: (userId: number, roleType: string, section?: string) =>
+    api("/admin/users/" + userId + "/roles/" + encodeURIComponent(roleType) + (section ? "?section=" + encodeURIComponent(section) : ""), { method: "DELETE" }),
+  meetingRooms: () => api<{ id: number; name: string }[]>("/admin/meeting-rooms"),
+  createMeetingRoom: (body: { name: string; name_ru?: string; name_zh?: string }) =>
+    api("/admin/meeting-rooms", { method: "POST", body: JSON.stringify(body) }),
+  cars: () => api<{ id: number; name: string; car_type?: string; brand?: string }[]>("/admin/cars"),
+  createCar: (body: { name: string; car_type?: string; brand?: string }) => api("/admin/cars", { method: "POST", body: JSON.stringify(body) }),
+  deleteCar: (id: number) => api("/admin/cars/" + id, { method: "DELETE" }),
+  drivers: () => api<{ id: number; name: string; phone?: string }[]>("/admin/drivers"),
+  createDriver: (body: { name: string; phone?: string }) => api("/admin/drivers", { method: "POST", body: JSON.stringify(body) }),
+  deleteDriver: (id: number) => api("/admin/drivers/" + id, { method: "DELETE" }),
+  topManagers: () => api<{ id: number; name: string }[]>("/admin/top-managers"),
+  createTopManager: (body: { name: string; user_id?: number }) =>
+    api("/admin/top-managers", { method: "POST", body: JSON.stringify(body) }),
+  updateTopManager: (id: number, body: { name?: string; user_id?: number | null }) =>
+    api("/admin/top-managers/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  linkSecretaryTopManager: (secretaryId: number, topManagerId: number) =>
+    api("/admin/secretary-top-managers", { method: "POST", body: JSON.stringify({ secretary_id: secretaryId, top_manager_id: topManagerId }) }),
+};
+
+export type ITTicket = {
+  id: number;
+  problem_type: string | null;
+  title: string;
+  description: string | null;
+  priority: string;
+  status: string;
+  created_by_id: number;
+  created_by_name: string;
+  assigned_engineer_id: number | null;
+  assigned_engineer_name: string | null;
+  created_at: string;
+  closed_at: string | null;
+};
+
+export type ITTicketComment = {
+  id: number;
+  author_id: number;
+  author_name: string;
+  body: string;
+  created_at: string | null;
+};
+
+export type FileAttachment = {
+  id: number;
+  file_name: string;
+  file_size: number;
+  content_type: string | null;
+  uploaded_by_name: string;
+  created_at: string | null;
+};
+
+export const it = {
+  engineers: () => api<{ id: number; display_name: string }[]>("/it/engineers"),
+  tickets: (params?: { status?: string }) => {
+    const q = new URLSearchParams(params as Record<string, string>).toString();
+    return api<ITTicket[]>(`/it/tickets${q ? `?${q}` : ""}`);
+  },
+  getTicket: (id: number) => api<ITTicket>("/it/tickets/" + id),
+  getComments: (ticketId: number) => api<ITTicketComment[]>("/it/tickets/" + ticketId + "/comments"),
+  addComment: (ticketId: number, body: string) =>
+    api<ITTicketComment>("/it/tickets/" + ticketId + "/comments", { method: "POST", body: JSON.stringify({ body }) }),
+  createTicket: (problemType: string | null, title: string, description?: string, priority?: string) =>
+    api<{ id: number }>("/it/tickets", { method: "POST", body: JSON.stringify({ problem_type: problemType, title, description, priority: priority || "medium" }) }),
+  assign: (ticketId: number, engineerId: number) =>
+    api("/it/tickets/" + ticketId + "/assign", { method: "POST", body: JSON.stringify({ engineer_id: engineerId }) }),
+  start: (ticketId: number) => api("/it/tickets/" + ticketId + "/start", { method: "POST" }),
+  closeByEngineer: (ticketId: number) => api("/it/tickets/" + ticketId + "/close-by-engineer", { method: "POST" }),
+  confirmByUser: (ticketId: number) => api("/it/tickets/" + ticketId + "/confirm-by-user", { method: "POST" }),
+  uploadFile: (ticketId: number, file: File) => uploadFileApi<FileAttachment>("/it/tickets/" + ticketId + "/files", file),
+  listFiles: (ticketId: number) => api<FileAttachment[]>("/it/tickets/" + ticketId + "/files"),
+  getFileDownloadUrl: (ticketId: number, fileId: number) => api<{ download_url: string }>("/it/tickets/" + ticketId + "/files/" + fileId + "/download"),
+  downloadFile: (ticketId: number, fileId: number, fileName: string) =>
+    downloadFileApi("/it/tickets/" + ticketId + "/files/" + fileId + "/file", fileName),
+};
+
+export type TransportApprover = { id: number; display_name: string; is_manager: boolean };
+
+export type AdmTicketBody = {
+  ticket_type: string;
+  title: string;
+  description?: string;
+  priority?: string;
+  requires_it?: boolean;
+  room_id?: number;
+  subject?: string;
+  start_at?: string;
+  end_at?: string;
+};
+
+export type AdmTicket = {
+  id: number;
+  ticket_type: string;
+  title: string;
+  description: string | null;
+  priority: string;
+  status: string;
+  created_by_id: number;
+  created_by_name: string;
+  assigned_engineer_id: number | null;
+  requires_it: boolean;
+  it_ticket_id: number | null;
+  created_at: string;
+  closed_at: string | null;
+  meeting_booking: { room_id: number; subject: string | null; start_at: string; end_at: string } | null;
+};
+
+export const administration = {
+  meetingRooms: () => api<{ id: number; name: string }[]>("/administration/meeting-rooms"),
+  bookings: (params?: { room_id?: number; from_date?: string; to_date?: string }) => {
+    const q = new URLSearchParams(params as Record<string, string>).toString();
+    return api<unknown[]>(`/administration/bookings${q ? `?${q}` : ""}`);
+  },
+  tickets: (params?: { status?: string; ticket_type?: string }) => {
+    const q = new URLSearchParams(params as Record<string, string>).toString();
+    return api<AdmTicket[]>(`/administration/tickets${q ? `?${q}` : ""}`);
+  },
+  createTicket: (body: AdmTicketBody) =>
+    api<{ id: number }>("/administration/tickets", { method: "POST", body: JSON.stringify({ ...body, priority: body.priority || "medium" }) }),
+  closeByEngineer: (ticketId: number) => api("/administration/tickets/" + ticketId + "/close-by-engineer", { method: "POST" }),
+  reject: (ticketId: number) => api("/administration/tickets/" + ticketId + "/reject", { method: "POST" }),
+  confirmByUser: (ticketId: number) => api("/administration/tickets/" + ticketId + "/confirm-by-user", { method: "POST" }),
+  uploadFile: (ticketId: number, file: File) => uploadFileApi<FileAttachment>("/administration/tickets/" + ticketId + "/files", file),
+  listFiles: (ticketId: number) => api<FileAttachment[]>("/administration/tickets/" + ticketId + "/files"),
+  getFileDownloadUrl: (ticketId: number, fileId: number) => api<{ download_url: string }>("/administration/tickets/" + ticketId + "/files/" + fileId + "/download"),
+  downloadFile: (ticketId: number, fileId: number, fileName: string) =>
+    downloadFileApi("/administration/tickets/" + ticketId + "/files/" + fileId + "/file", fileName),
+};
+
+export type TransportTicketBody = {
+  ticket_type: string;
+  priority?: string;
+  from_location?: string;
+  destination: string;
+  start_date?: string;
+  start_time?: string;
+  passenger_count: number;
+  approximate_time?: string;
+  comment?: string;
+  approver_id?: number | null;
+};
+
+export type TransportTicket = {
+  id: number;
+  ticket_type: string;
+  priority: string;
+  from_location: string | null;
+  destination: string;
+  start_date: string | null;
+  start_time: string | null;
+  passenger_count: number;
+  approximate_time: string | null;
+  comment: string | null;
+  status: string;
+  created_by_id: number;
+  created_by_name: string;
+  approver_id: number | null;
+  approver_name: string | null;
+  manager_approved_at: string | null;
+  hr_approved_at: string | null;
+  car_id: number | null;
+  driver_id: number | null;
+  car_name: string | null;
+  driver_name: string | null;
+  ready_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+};
+
+export const transport = {
+  cars: () => api<{ id: number; name: string }[]>("/transport/cars"),
+  drivers: () => api<{ id: number; name: string }[]>("/transport/drivers"),
+  approvers: () => api<TransportApprover[]>("/transport/approvers"),
+  tickets: (params?: { status?: string; pending_my_approval?: boolean }) => {
+    const q = new URLSearchParams(params as Record<string, string>).toString();
+    return api<TransportTicket[]>(`/transport/tickets${q ? `?${q}` : ""}`);
+  },
+  createTicket: (body: TransportTicketBody) =>
+    api<{ id: number }>("/transport/tickets", { method: "POST", body: JSON.stringify({ ...body, priority: body.priority || "medium" }) }),
+  managerApprove: (ticketId: number) => api("/transport/tickets/" + ticketId + "/manager-approve", { method: "POST" }),
+  hrApprove: (ticketId: number) => api("/transport/tickets/" + ticketId + "/hr-approve", { method: "POST" }),
+  assign: (ticketId: number, carId: number, driverId: number) =>
+    api("/transport/tickets/" + ticketId + "/assign", { method: "POST", body: JSON.stringify({ car_id: carId, driver_id: driverId }) }),
+  closeByEngineer: (ticketId: number) => api("/transport/tickets/" + ticketId + "/close-by-engineer", { method: "POST" }),
+  confirmByUser: (ticketId: number) => api("/transport/tickets/" + ticketId + "/confirm-by-user", { method: "POST" }),
+  uploadFile: (ticketId: number, file: File) => uploadFileApi<FileAttachment>("/transport/tickets/" + ticketId + "/files", file),
+  listFiles: (ticketId: number) => api<FileAttachment[]>("/transport/tickets/" + ticketId + "/files"),
+  getFileDownloadUrl: (ticketId: number, fileId: number) => api<{ download_url: string }>("/transport/tickets/" + ticketId + "/files/" + fileId + "/download"),
+  downloadFile: (ticketId: number, fileId: number, fileName: string) =>
+    downloadFileApi("/transport/tickets/" + ticketId + "/files/" + fileId + "/file", fileName),
+};
+
+export type TravelStatBody = { travel_ticket_id?: number; username?: string; source_destination?: string; date_time?: string; company?: string; price?: number };
+
+export type TravelTicket = {
+  id: number;
+  source_destination_json: string;
+  comment: string | null;
+  priority: string;
+  status: string;
+  book_hotel?: boolean;
+  created_by_id: number;
+  created_by_name: string;
+  created_at: string;
+  closed_at: string | null;
+};
+
+export type TravelStat = {
+  id: number;
+  travel_ticket_id: number;
+  username: string | null;
+  source_destination: string;
+  date_time: string;
+  company: string;
+  price: number | null;
+  created_at: string;
+};
+
+export type TravelPlace = { name: string; countryName: string; display: string };
+
+export const travel = {
+  places: (q: string) => {
+    if (!q || q.length < 2) return Promise.resolve([] as TravelPlace[]);
+    return api<TravelPlace[]>(`/travel/places?q=${encodeURIComponent(q)}`);
+  },
+  tickets: (params?: { status?: string }) => {
+    const q = new URLSearchParams(params as Record<string, string>).toString();
+    return api<TravelTicket[]>(`/travel/tickets${q ? `?${q}` : ""}`);
+  },
+  createTicket: (segments: { source: string; destination: string; date?: string; time?: string }[], comment?: string, priority?: string, book_hotel?: boolean) =>
+    api<{ id: number }>("/travel/tickets", { method: "POST", body: JSON.stringify({ segments, comment, priority: priority || "medium", book_hotel: !!book_hotel }) }),
+  close: (ticketId: number) => api("/travel/tickets/" + ticketId + "/close", { method: "POST" }),
+  reject: (ticketId: number) => api("/travel/tickets/" + ticketId + "/reject", { method: "POST" }),
+  stats: () => api<TravelStat[]>("/travel/stats"),
+  createStat: (body: TravelStatBody) => api("/travel/stats", { method: "POST", body: JSON.stringify(body) }),
+  updateStat: (statId: number, body: { company: string; price: number }) => api("/travel/stats/" + statId, { method: "PATCH", body: JSON.stringify(body) }),
+  uploadFile: (ticketId: number, file: File) => uploadFileApi<FileAttachment>("/travel/tickets/" + ticketId + "/files", file),
+  listFiles: (ticketId: number) => api<FileAttachment[]>("/travel/tickets/" + ticketId + "/files"),
+  getFileDownloadUrl: (ticketId: number, fileId: number) => api<{ download_url: string }>("/travel/tickets/" + ticketId + "/files/" + fileId + "/download"),
+  downloadFile: (ticketId: number, fileId: number, fileName: string) =>
+    downloadFileApi("/travel/tickets/" + ticketId + "/files/" + fileId + "/file", fileName),
+};
+
+export type TopManagerMyManager = { id: number; name: string; user_id: number | null };
+
+export const topManagers = {
+  availability: () =>
+    api<{ id: number; name: string; status: string | null; comment: string | null; updated_at: string | null }[]>("/top-managers/availability"),
+  setAvailability: (topManagerId: number, status: string, comment?: string) =>
+    api("/top-managers/availability/" + topManagerId, {
+      method: "POST",
+      body: JSON.stringify({ status, comment: comment || null }),
+    }),
+  myManagers: () => api<TopManagerMyManager[]>("/top-managers/my-managers"),
+};
