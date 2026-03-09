@@ -50,6 +50,7 @@ class TransportTicket(Base):
     comment = Column(Text, nullable=True)
     status = Column(String(50), default="open")  # open, manager_approved, hr_approved, assigned, ready, closed
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    requester_phone = Column(String(50), nullable=True)
     approver_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # per-ticket approver (Manager or other user)
     manager_approved_at = Column(DateTime, nullable=True)
     hr_approved_at = Column(DateTime, nullable=True)

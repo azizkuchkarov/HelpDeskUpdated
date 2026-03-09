@@ -243,11 +243,7 @@ def add_comment(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Add a comment. Only IT Admin or IT Engineer with access to the ticket can comment."""
-    is_admin = _is_it_admin(user, db)
-    is_engineer = _is_it_engineer(user, db)
-    if not is_admin and not is_engineer:
-        raise HTTPException(403, "Only IT Admin or IT Engineer can add comments")
+    """Add a comment. Any user with access to the ticket can comment."""
     ticket = db.query(ITTicket).get(ticket_id)
     if not ticket:
         raise HTTPException(404, "Ticket not found")

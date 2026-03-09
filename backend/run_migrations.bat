@@ -12,6 +12,7 @@ python add_it_problem_type_column.py
 python add_car_driver_columns.py
 python make_meeting_subject_nullable.py
 python add_file_attachments_table.py
+python add_translator_tables.py
 
 echo Migrations completed!
 

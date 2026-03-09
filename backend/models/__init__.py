@@ -5,8 +5,11 @@ from .it import ITTicket, ITTicketComment
 from .administration import AdmTicket, MeetingRoom, MeetingRoomBooking
 from .transport import TransportTicket, Car, Driver
 from .travel import TravelTicket, TravelTicketStat
+from .translator import TranslatorTicket
 from .top_managers import TopManager, SecretaryTopManager, TopManagerAvailability, AvailabilityStatus
 from .file_attachment import FileAttachment
+from .ticket_comment import TicketComment
+from .inventory import InventoryType, InventoryItem
 
 __all__ = [
     "Base",
@@ -25,9 +28,13 @@ __all__ = [
     "Driver",
     "TravelTicket",
     "TravelTicketStat",
+    "TranslatorTicket",
     "TopManager",
     "SecretaryTopManager",
     "TopManagerAvailability",
     "AvailabilityStatus",
     "FileAttachment",
+    "TicketComment",
+    "InventoryType",
+    "InventoryItem",
 ]

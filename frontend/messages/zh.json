@@ -2,11 +2,14 @@
   "dashboard": { "welcome": "欢迎", "quickAccess": "快速访问", "goTo": "进入", "adminDesc": "部门、用户、角色、会议室、车辆、司机" },
   "app": { "title": "HelpDesk", "login": "登录", "logout": "退出", "username": "用户名", "password": "密码" },
   "nav": {
+    "mainMenu": "主菜单",
     "dashboard": "仪表板",
+    "inventory": "库存",
     "it": "IT 部分",
     "administration": "行政",
     "transport": "交通",
     "travel": "机票申请",
+    "translator": "翻译",
     "topManagers": "高层可用性",
     "workflow": "流程",
     "documentControl": "文档控制（门户）",
@@ -51,7 +54,7 @@
   },
   "transport": {
     "title": "交通",
-    "daily": "日常 (8:30–18:30)",
+    "daily": "日常 (8:30–18:00)",
     "overtime": "加班",
     "maxsus": "特殊交通",
     "from": "出发地",
@@ -70,6 +73,8 @@
     "hrApprove": "HR 审批",
     "car": "车辆",
     "driver": "司机",
+    "driverPhone": "司机电话",
+    "contacts": "联系方式",
     "pendingApproval": "待我审批"
   },
   "travel": {
@@ -166,5 +171,35 @@
       "step2": "所有人可见可用性"
     }
   },
-  "common": { "save": "保存", "cancel": "取消", "delete": "删除", "edit": "编辑", "back": "返回", "loading": "加载中..." }
+  "common": { "save": "保存", "cancel": "取消", "close": "关闭", "delete": "删除", "edit": "编辑", "back": "返回", "loading": "加载中...", "actions": "操作", "requesterPhone": "您的电话号码", "requesterPhonePlaceholder": "例如 +998 90 123 45 67" },
+  "inventory": {
+    "title": "库存",
+    "subtitle": "分配给您的物品。负责人：Djalilov Dilmurod, Musabaed Abubakir。",
+    "myItems": "我的物品",
+    "manage": "管理",
+    "assignedToMe": "分配给我",
+    "noItems": "无分配物品",
+    "responsible": "负责人",
+    "addType": "添加类型",
+    "addItem": "添加物品",
+    "addMyItem": "添加我的物品",
+    "type": "类型",
+    "name": "名称",
+    "serialNumber": "序列号",
+    "model": "型号",
+    "brand": "品牌",
+    "status": "状态",
+    "assignedTo": "分配给",
+    "assign": "分配",
+    "unassign": "取消分配",
+    "confirmUnassign": "取消分配此物品？",
+    "typeName": "类型名称",
+    "typeNameRu": "类型名称 (RU)",
+    "allUsers": "所有用户",
+    "allTypes": "所有类型",
+    "allStatuses": "所有状态",
+    "selectUser": "选择用户",
+    "notes": "备注",
+    "noTypesHint": "尚无物品类型。请联系库存管理员或运行 seed_inventory_types.py"
+  }
 }

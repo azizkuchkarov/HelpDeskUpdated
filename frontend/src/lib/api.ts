@@ -103,7 +103,9 @@ export const auth = {
       method: "POST",
       body: JSON.stringify({ username, password }),
     }),
-  me: () => api<{ id: number; ldap_username: string; display_name: string; email: string; department_id: number | null; roles: { role_type: string; section: string | null }[]; approver_id: number | null }>("/auth/me"),
+  me: () => api<{ id: number; ldap_username: string; display_name: string; email: string; phone_number: string | null; department_id: number | null; roles: { role_type: string; section: string | null }[]; approver_id: number | null }>("/auth/me"),
+  updatePhone: (phone: string | null) =>
+    api("/auth/me", { method: "PATCH", body: JSON.stringify({ phone_number: phone || null }) }),
 };
 
 export const admin = {
@@ -241,6 +243,9 @@ export const administration = {
   closeByEngineer: (ticketId: number) => api("/administration/tickets/" + ticketId + "/close-by-engineer", { method: "POST" }),
   reject: (ticketId: number) => api("/administration/tickets/" + ticketId + "/reject", { method: "POST" }),
   confirmByUser: (ticketId: number) => api("/administration/tickets/" + ticketId + "/confirm-by-user", { method: "POST" }),
+  getComments: (ticketId: number) => api<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }[]>("/administration/tickets/" + ticketId + "/comments"),
+  addComment: (ticketId: number, body: string) =>
+    api<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }>("/administration/tickets/" + ticketId + "/comments", { method: "POST", body: JSON.stringify({ body }) }),
   uploadFile: (ticketId: number, file: File) => uploadFileApi<FileAttachment>("/administration/tickets/" + ticketId + "/files", file),
   listFiles: (ticketId: number) => api<FileAttachment[]>("/administration/tickets/" + ticketId + "/files"),
   getFileDownloadUrl: (ticketId: number, fileId: number) => api<{ download_url: string }>("/administration/tickets/" + ticketId + "/files/" + fileId + "/download"),
@@ -259,6 +264,7 @@ export type TransportTicketBody = {
   approximate_time?: string;
   comment?: string;
   approver_id?: number | null;
+  requester_phone?: string;
 };
 
 export type TransportTicket = {
@@ -304,6 +310,9 @@ export const transport = {
     api("/transport/tickets/" + ticketId + "/assign", { method: "POST", body: JSON.stringify({ car_id: carId, driver_id: driverId }) }),
   closeByEngineer: (ticketId: number) => api("/transport/tickets/" + ticketId + "/close-by-engineer", { method: "POST" }),
   confirmByUser: (ticketId: number) => api("/transport/tickets/" + ticketId + "/confirm-by-user", { method: "POST" }),
+  getComments: (ticketId: number) => api<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }[]>("/transport/tickets/" + ticketId + "/comments"),
+  addComment: (ticketId: number, body: string) =>
+    api<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }>("/transport/tickets/" + ticketId + "/comments", { method: "POST", body: JSON.stringify({ body }) }),
   uploadFile: (ticketId: number, file: File) => uploadFileApi<FileAttachment>("/transport/tickets/" + ticketId + "/files", file),
   listFiles: (ticketId: number) => api<FileAttachment[]>("/transport/tickets/" + ticketId + "/files"),
   getFileDownloadUrl: (ticketId: number, fileId: number) => api<{ download_url: string }>("/transport/tickets/" + ticketId + "/files/" + fileId + "/download"),
@@ -351,6 +360,9 @@ export const travel = {
   createTicket: (segments: { source: string; destination: string; date?: string; time?: string }[], comment?: string, priority?: string, book_hotel?: boolean) =>
     api<{ id: number }>("/travel/tickets", { method: "POST", body: JSON.stringify({ segments, comment, priority: priority || "medium", book_hotel: !!book_hotel }) }),
   close: (ticketId: number) => api("/travel/tickets/" + ticketId + "/close", { method: "POST" }),
+  getComments: (ticketId: number) => api<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }[]>("/travel/tickets/" + ticketId + "/comments"),
+  addComment: (ticketId: number, body: string) =>
+    api<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }>("/travel/tickets/" + ticketId + "/comments", { method: "POST", body: JSON.stringify({ body }) }),
   reject: (ticketId: number) => api("/travel/tickets/" + ticketId + "/reject", { method: "POST" }),
   stats: () => api<TravelStat[]>("/travel/stats"),
   createStat: (body: TravelStatBody) => api("/travel/stats", { method: "POST", body: JSON.stringify(body) }),
@@ -363,6 +375,119 @@ export const travel = {
 };
 
 export type TopManagerMyManager = { id: number; name: string; user_id: number | null };
+
+export type TranslatorTicket = {
+  id: number;
+  title: string;
+  description: string | null;
+  source_language: string;
+  target_language: string;
+  status: string;
+  created_by_id: number;
+  created_by_name: string;
+  assigned_translator_id: number | null;
+  assigned_translator_name: string | null;
+  assigned_checkin_id: number | null;
+  assigned_checkin_name: string | null;
+  created_at: string;
+  closed_at: string | null;
+  translator_started_at: string | null;
+  translator_submitted_at: string | null;
+  confirmed_by_user_at: string | null;
+};
+
+export type TranslatorFile = {
+  id: number;
+  file_name: string;
+  file_size: number;
+  content_type: string | null;
+  file_category: string | null;
+  uploaded_by_name: string;
+  created_at: string;
+};
+
+export const translator = {
+  tickets: (params?: { status?: string }) => {
+    const q = new URLSearchParams(params as Record<string, string>).toString();
+    return api<TranslatorTicket[]>(`/translator/tickets${q ? `?${q}` : ""}`);
+  },
+  getTicket: (id: number) => api<TranslatorTicket>("/translator/tickets/" + id),
+  getComments: (ticketId: number) => api<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }[]>("/translator/tickets/" + ticketId + "/comments"),
+  addComment: (ticketId: number, body: string) =>
+    api<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }>("/translator/tickets/" + ticketId + "/comments", { method: "POST", body: JSON.stringify({ body }) }),
+  createTicket: (body: { title: string; description?: string; source_language: string; target_language: string }) =>
+    api<{ id: number }>("/translator/tickets", { method: "POST", body: JSON.stringify(body) }),
+  engineers: () => api<{ id: number; display_name: string; role_type: string }[]>("/translator/engineers"),
+  assign: (ticketId: number, translatorId: number, checkinId: number) =>
+    api("/translator/tickets/" + ticketId + "/assign", {
+      method: "POST",
+      body: JSON.stringify({ translator_id: translatorId, checkin_id: checkinId }),
+    }),
+  uploadOriginal: (ticketId: number, file: File) =>
+    uploadFileApi<{ id: number; file_name: string; file_size: number }>("/translator/tickets/" + ticketId + "/upload-original", file),
+  uploadTranslated: (ticketId: number, file: File) =>
+    uploadFileApi<{ id: number; file_name: string; file_size: number }>("/translator/tickets/" + ticketId + "/upload-translated", file),
+  listFiles: (ticketId: number, category?: string) => {
+    const q = category ? `?category=${encodeURIComponent(category)}` : "";
+    return api<TranslatorFile[]>(`/translator/tickets/${ticketId}/files${q}`);
+  },
+  getFileDownloadUrl: (ticketId: number, fileId: number) =>
+    api<{ download_url: string }>("/translator/tickets/" + ticketId + "/files/" + fileId + "/download"),
+  downloadFile: (ticketId: number, fileId: number, fileName: string) =>
+    downloadFileApi("/translator/tickets/" + ticketId + "/files/" + fileId + "/file", fileName),
+  startTranslation: (ticketId: number) =>
+    api("/translator/tickets/" + ticketId + "/start-translation", { method: "POST" }),
+  submitToCheckin: (ticketId: number) =>
+    api("/translator/tickets/" + ticketId + "/submit-to-checkin", { method: "POST" }),
+  checkinApprove: (ticketId: number) =>
+    api("/translator/tickets/" + ticketId + "/checkin-approve", { method: "POST" }),
+  checkinReject: (ticketId: number) =>
+    api("/translator/tickets/" + ticketId + "/checkin-reject", { method: "POST" }),
+  confirmByUser: (ticketId: number) =>
+    api("/translator/tickets/" + ticketId + "/confirm-by-user", { method: "POST" }),
+};
+
+export type InventoryType = { id: number; name: string; name_ru: string | null; description: string | null };
+export type InventoryItem = {
+  id: number;
+  type_id: number;
+  type_name: string;
+  type_name_ru: string | null;
+  name: string;
+  serial_number: string | null;
+  model: string | null;
+  brand: string | null;
+  status: string;
+  assigned_to_id?: number | null;
+  assigned_to_name?: string | null;
+  assigned_at?: string | null;
+  assigned_by_name?: string | null;
+  notes?: string | null;
+  created_at?: string | null;
+};
+
+export const inventory = {
+  types: () => api<InventoryType[]>("/inventory/types"),
+  createType: (body: { name: string; name_ru?: string; description?: string }) =>
+    api<{ id: number }>("/inventory/types", { method: "POST", body: JSON.stringify(body) }),
+  updateType: (id: number, body: { name?: string; name_ru?: string; description?: string; is_active?: boolean }) =>
+    api("/inventory/types/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  myItems: () => api<InventoryItem[]>("/inventory/my-items"),
+  addMyItem: (body: { type_id: number; name: string; serial_number?: string; model?: string; brand?: string; notes?: string }) =>
+    api<InventoryItem>("/inventory/my-items", { method: "POST", body: JSON.stringify(body) }),
+  items: (params?: { user_id?: number; type_id?: number; status?: string }) => {
+    const q = new URLSearchParams(params as Record<string, string>).toString();
+    return api<InventoryItem[]>(`/inventory/items${q ? `?${q}` : ""}`);
+  },
+  createItem: (body: { type_id: number; name: string; serial_number?: string; model?: string; brand?: string; notes?: string }) =>
+    api<InventoryItem>("/inventory/items", { method: "POST", body: JSON.stringify(body) }),
+  updateItem: (id: number, body: { type_id?: number; name?: string; serial_number?: string; model?: string; brand?: string; status?: string; notes?: string }) =>
+    api("/inventory/items/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  assignItem: (itemId: number, userId: number) =>
+    api<{ ok: boolean; assigned_to: string }>("/inventory/items/" + itemId + "/assign", { method: "POST", body: JSON.stringify({ user_id: userId }) }),
+  unassignItem: (itemId: number) => api<{ ok: boolean }>("/inventory/items/" + itemId + "/unassign", { method: "POST" }),
+  users: () => api<{ id: number; display_name: string; ldap_username: string }[]>("/inventory/users"),
+};
 
 export const topManagers = {
   availability: () =>

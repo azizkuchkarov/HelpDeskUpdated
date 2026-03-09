@@ -26,9 +26,25 @@ docker run -d \
 
 ## 2. MinIO'ni Ishga Tushirish
 
-### Standalone (Windows):
+### Standalone (Windows) — C:\minio\minio.exe:
 ```powershell
-# MinIO'ni ishga tushiring
+# MinIO'ni C:\minio papkasida minio.exe orqali ishga tushiring
+C:\minio\minio.exe server C:\minio-data --console-address ":9001"
+```
+
+Agar `C:\minio-data` papkasi mavjud bo'lmasa, avval yarating:
+```powershell
+mkdir C:\minio-data
+```
+
+**Yoki boshqa joyda (masalan D:\minio-data):**
+```powershell
+C:\minio\minio.exe server D:\minio-data --console-address ":9001"
+```
+
+### Standalone (PATH orqali):
+```powershell
+# MinIO'ni ishga tushiring (agar minio PATH ichida bo'lsa)
 minio server D:\minio-data --console-address ":9001"
 ```
 
@@ -164,3 +180,4 @@ mc cp test.txt myminio/helpdesk-files/
 - MinIO Console: http://localhost:9001
 - MinIO API: http://localhost:9000
 - Documentation: https://min.io/docs/
+uvicorn main:app --reload --host 0.0.0.0 --port 8000

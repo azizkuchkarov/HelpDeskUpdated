@@ -8,6 +8,7 @@ import enum
 class RoleType(str, enum.Enum):
     GLOBAL_ADMIN = "global_admin"
     MANAGER = "manager"
+    INVENTORY_MANAGER = "inventory_manager"
     IT_ADMIN = "it_admin"
     IT_ENGINEER = "it_engineer"
     ADM_ENGINEER = "adm_engineer"
@@ -27,6 +28,7 @@ class User(Base):
     ldap_username = Column(String(255), unique=True, nullable=False, index=True)
     display_name = Column(String(255), nullable=True)
     email = Column(String(255), nullable=True)
+    phone_number = Column(String(50), nullable=True)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

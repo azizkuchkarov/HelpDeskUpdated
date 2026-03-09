@@ -16,6 +16,7 @@ from auth.deps import get_current_user
 from models.user import User, UserRole
 from models.travel import TravelTicket, TravelTicketStat
 from models.file_attachment import FileAttachment
+from models.ticket_comment import TicketComment
 from services.minio_service import upload_file, get_presigned_url, stream_object, content_disposition_for_filename
 
 # Load local places (offline autocomplete)
@@ -79,6 +80,10 @@ class TravelTicketCreate(BaseModel):
     comment: Optional[str] = None
     priority: Optional[str] = "medium"  # low, medium, high, urgent
     book_hotel: Optional[bool] = False
+
+
+class CommentCreate(BaseModel):
+    body: str
 
 
 class TravelTicketStatCreate(BaseModel):
@@ -298,6 +303,70 @@ def update_stat(stat_id: int, d: TravelTicketStatUpdate, db: Session = Depends(g
     stat.price = Decimal(str(d.price))
     db.commit()
     return {"ok": True, "id": stat.id}
+
+
+@router.get("/tickets/{ticket_id}/comments")
+def list_comments(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """List comments on a Travel ticket."""
+    ticket = db.query(TravelTicket).get(ticket_id)
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+    if not _can_access_travel_ticket(user, ticket, db):
+        raise HTTPException(403, "Access denied")
+    comments = (
+        db.query(TicketComment)
+        .filter(TicketComment.ticket_type == "travel", TicketComment.ticket_id == ticket_id)
+        .order_by(TicketComment.created_at)
+        .all()
+    )
+    return [
+        {
+            "id": c.id,
+            "author_id": c.author_id,
+            "author_name": c.author.display_name or c.author.ldap_username,
+            "body": c.body,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in comments
+    ]
+
+
+@router.post("/tickets/{ticket_id}/comments")
+def add_comment(
+    ticket_id: int,
+    d: CommentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Add a comment. Any user with access to the ticket can comment."""
+    ticket = db.query(TravelTicket).get(ticket_id)
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+    if not _can_access_travel_ticket(user, ticket, db):
+        raise HTTPException(403, "Access denied")
+    body = (d.body or "").strip()
+    if not body:
+        raise HTTPException(400, "Comment body is required")
+    comment = TicketComment(
+        ticket_type="travel",
+        ticket_id=ticket_id,
+        author_id=user.id,
+        body=body,
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return {
+        "id": comment.id,
+        "author_id": comment.author_id,
+        "author_name": user.display_name or user.ldap_username,
+        "body": comment.body,
+        "created_at": comment.created_at.isoformat() if comment.created_at else None,
+    }
 
 
 @router.post("/tickets/{ticket_id}/files")

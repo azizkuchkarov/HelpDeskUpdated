@@ -4,10 +4,12 @@
   "nav": {
     "mainMenu": "Main Menu",
     "dashboard": "Dashboard",
+    "inventory": "Inventory",
     "it": "IT Section",
     "administration": "Administration",
     "transport": "Transport",
     "travel": "Travel Tickets",
+    "translator": "Translator",
     "topManagers": "Top Managers Availability",
     "workflow": "Workflow",
     "documentControl": "Document Control (Portal)",
@@ -52,7 +54,7 @@
   },
   "transport": {
     "title": "Transport",
-    "daily": "Daily (8:30–18:30)",
+    "daily": "Daily (8:30–18:00)",
     "overtime": "Overtime",
     "maxsus": "Special Transport",
     "from": "From",
@@ -71,6 +73,8 @@
     "hrApprove": "HR approval",
     "car": "Car",
     "driver": "Driver",
+    "driverPhone": "Driver phone",
+    "contacts": "Contacts",
     "pendingApproval": "Pending my approval"
   },
   "travel": {
@@ -124,6 +128,10 @@
     "wfHrManager": "HR (Overtime approve)",
     "wfTicketEngineer": "Ticket Engineer",
     "wfHotelEngineer": "Hotel Engineer",
+    "wfTranslatorAdmin": "Translator Admin",
+    "wfTranslatorEngineer": "Translator Engineer",
+    "wfCheckinEngineer": "Check-in Engineer",
+    "wfInventoryManager": "Inventory Manager",
     "wfSecretary": "Secretary",
     "wfDeptManagerNote": "Department Manager is set in Departments (Approver for the whole department).",
     "wfAddRole": "Add",
@@ -161,11 +169,49 @@
       "step3": "Travel Ticket Engineer fulfills and records; Hotel Engineer handles hotel and can close",
       "step4": "Administration Manager sees statistics"
     },
+    "translator": {
+      "title": "Translator",
+      "step1": "User creates translation request and uploads original files",
+      "step2": "Translator Admin assigns Translator Engineer and Check-in Engineer",
+      "step3": "Translator Engineer translates and uploads translated files",
+      "step4": "Check-in Engineer reviews and approves or rejects",
+      "step5": "User receives final translated files after approval"
+    },
     "topManagers": {
       "title": "Top Managers Availability",
       "step1": "Secretary sets manager at work / not at work",
       "step2": "All users see availability"
     }
   },
-  "common": { "save": "Save", "cancel": "Cancel", "delete": "Delete", "edit": "Edit", "back": "Back", "loading": "Loading..." }
+  "common": { "save": "Save", "cancel": "Cancel", "close": "Close", "delete": "Delete", "edit": "Edit", "back": "Back", "loading": "Loading...", "actions": "Actions", "requesterPhone": "Your phone number", "requesterPhonePlaceholder": "e.g. +998 90 123 45 67" },
+  "inventory": {
+    "title": "Inventory",
+    "subtitle": "Items assigned to you. Managed by Djalilov Dilmurod, Musabaed Abubakir.",
+    "myItems": "My Items",
+    "manage": "Manage",
+    "assignedToMe": "Assigned to me",
+    "noItems": "No items assigned",
+    "responsible": "Responsible",
+    "addType": "Add type",
+    "addItem": "Add item",
+    "addMyItem": "Add my item",
+    "type": "Type",
+    "name": "Name",
+    "serialNumber": "Serial number",
+    "model": "Model",
+    "brand": "Brand",
+    "status": "Status",
+    "assignedTo": "Assigned to",
+    "assign": "Assign",
+    "unassign": "Unassign",
+    "confirmUnassign": "Unassign this item?",
+    "typeName": "Type name",
+    "typeNameRu": "Type name (RU)",
+    "allUsers": "All users",
+    "allTypes": "All types",
+    "allStatuses": "All statuses",
+    "selectUser": "Select user",
+    "notes": "Notes",
+    "noTypesHint": "No item types yet. Ask inventory manager to add types or run seed_inventory_types.py"
+  }
 }

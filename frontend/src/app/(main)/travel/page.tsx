@@ -41,6 +41,10 @@ export default function TravelPage() {
   const [tab, setTab] = useState<"tickets" | "stats">("tickets");
   const [modal, setModal] = useState<"new" | "stat" | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [comments, setComments] = useState<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [newCommentBody, setNewCommentBody] = useState("");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
@@ -94,14 +98,23 @@ export default function TravelPage() {
   useEffect(() => {
     if (detailId == null) {
       setFiles([]);
+      setComments([]);
       return;
     }
     setFilesLoading(true);
-    travelApi
-      .listFiles(detailId)
-      .then(setFiles)
-      .catch(() => setFiles([]))
-      .finally(() => setFilesLoading(false));
+    setCommentsLoading(true);
+    Promise.all([
+      travelApi.listFiles(detailId).catch(() => []),
+      travelApi.getComments(detailId).catch(() => []),
+    ])
+      .then(([filesData, commentsData]) => {
+        setFiles(filesData);
+        setComments(commentsData);
+      })
+      .finally(() => {
+        setFilesLoading(false);
+        setCommentsLoading(false);
+      });
   }, [detailId]);
 
   // Debounced GeoNames place search for source/destination
@@ -271,6 +284,18 @@ export default function TravelPage() {
     }
   }
 
+  async function submitComment() {
+    if (!detailId || !newCommentBody.trim()) return;
+    setCommentSubmitting(true);
+    try {
+      const added = await travelApi.addComment(detailId, newCommentBody.trim());
+      setComments((prev) => [...prev, added]);
+      setNewCommentBody("");
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }
+
   async function handleFileDownload(fileId: number, fileName: string) {
     if (!detailId) return;
     try {
@@ -427,47 +452,96 @@ export default function TravelPage() {
                 <button type="button" onClick={() => setDetailId(null)} className="btn-jira-secondary">×</button>
               </div>
             </div>
-            <div className="jira-drawer-body">
-              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+            <div className="jira-drawer-body space-y-6">
+              <div className="flex flex-wrap gap-2">
                 <PriorityBadge priority={detailTicket.priority || "medium"} />
                 <StatusBadge status={detailTicket.status} label={statusLabels[detailTicket.status] || detailTicket.status} />
-                {detailTicket.book_hotel && <span className="inline-flex items-center rounded px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800">Hotel booking requested</span>}
+                {detailTicket.book_hotel && <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">Hotel booking requested</span>}
               </div>
-              <div className="jira-field-label">Segments</div>
-              <div className="jira-field-value" style={{ marginBottom: 12 }}>
-                {parseSegments(detailTicket.source_destination_json).map((s, i) => (
-                  <div key={i} style={{ marginBottom: 4 }}>{s.source} → {s.destination}{s.date && ` · ${s.date}${s.time ? " " + s.time : ""}`}</div>
-                ))}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <span className="text-base">📍</span> {t("travel.segments")}
+                </h3>
+                <div className="space-y-2">
+                  {parseSegments(detailTicket.source_destination_json).map((s, i) => (
+                    <div key={i} className="flex items-center gap-2 rounded-lg border border-slate-100 bg-white px-4 py-3 text-sm">
+                      <span className="font-medium text-slate-800">{s.source}</span>
+                      <span className="text-slate-400">→</span>
+                      <span className="font-medium text-slate-800">{s.destination}</span>
+                      {s.date && <span className="ml-auto text-xs text-slate-500">{s.date}{s.time ? " " + s.time : ""}</span>}
+                    </div>
+                  ))}
+                </div>
               </div>
-              {detailTicket.comment && (<><div className="jira-field-label">{t("transport.comment")}</div><div className="jira-description">{detailTicket.comment}</div></>)}
-              <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #dfe1e6" }}>
-                <div className="jira-field-label">Attachments</div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{t("it.comments")}</h3>
+                {detailTicket.comment && (
+                  <p className="mb-3 whitespace-pre-wrap rounded-lg bg-white px-3 py-2 text-sm text-slate-700 border border-slate-100">
+                    <span className="text-xs text-slate-500">{detailTicket.created_by_name} (initial):</span><br />
+                    {detailTicket.comment}
+                  </p>
+                )}
+                {commentsLoading ? (
+                  <p className="text-sm text-slate-500">{t("common.loading")}</p>
+                ) : (
+                  <>
+                    <ul className="mb-4 space-y-3">
+                      {comments.length === 0 && !detailTicket.comment ? (
+                        <li className="text-sm text-slate-500">{t("it.noComments")}</li>
+                      ) : (
+                        comments.map((c) => (
+                          <li key={c.id} className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                              <span className="font-medium">{c.author_name}</span>
+                              <span>{c.created_at ? formatDateUTC5(c.created_at) : ""}</span>
+                            </div>
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{c.body}</p>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                    <div className="space-y-2">
+                      <textarea
+                        value={newCommentBody}
+                        onChange={(e) => setNewCommentBody(e.target.value)}
+                        placeholder={t("it.addCommentPlaceholder")}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 min-h-[80px] resize-y"
+                        rows={3}
+                      />
+                      <button
+                        type="button"
+                        onClick={submitComment}
+                        disabled={!newCommentBody.trim() || commentSubmitting}
+                        className="btn-jira-primary"
+                      >
+                        {commentSubmitting ? t("common.loading") : t("it.addComment")}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Attachments</h3>
                 {filesLoading ? (
-                  <div className="jira-field-value">Loading...</div>
+                  <p className="text-sm text-slate-500">Loading...</p>
                 ) : (
                   <>
                     {files.length === 0 ? (
-                      <div className="jira-field-value">No attachments</div>
+                      <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">No attachments</p>
                     ) : (
-                      <ul style={{ marginBottom: 16, listStyle: "none", padding: 0 }}>
+                      <ul className="mb-4 space-y-2">
                         {files.map((f) => (
-                          <li key={f.id} style={{ marginBottom: 8, padding: 8, backgroundColor: "#f4f5f7", borderRadius: 4 }}>
-                            <button
-                              type="button"
-                              onClick={() => handleFileDownload(f.id, f.file_name)}
-                              style={{ color: "#0052CC", textDecoration: "none", background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 14 }}
-                            >
+                          <li key={f.id} className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-4 py-3 transition hover:bg-slate-50">
+                            <button type="button" onClick={() => handleFileDownload(f.id, f.file_name)} className="text-left font-medium text-primary-600 hover:underline">
                               {f.file_name}
                             </button>
-                            <div style={{ fontSize: 12, color: "#6b778c", marginTop: 4 }}>
-                              {formatFileSize(f.file_size)} · Uploaded by {f.uploaded_by_name} · {formatDateUTC5(f.created_at)}
-                            </div>
+                            <span className="text-xs text-slate-500">{formatFileSize(f.file_size)} · {f.uploaded_by_name}</span>
                           </li>
                         ))}
                       </ul>
                     )}
                     {isTicketEngineer && detailTicket.status === "open" && (
-                      <div style={{ marginTop: 12 }}>
+                      <div className="mt-3">
                         <input
                           type="file"
                           id="travel-detail-file-upload"
@@ -485,7 +559,7 @@ export default function TravelPage() {
                   </>
                 )}
               </div>
-              <div style={{ display: "flex", gap: 8, marginTop: 24, flexWrap: "wrap" }}>
+              <div className="flex flex-wrap gap-2">
                 {isTicketEngineer && detailTicket.status === "open" && (
                   <>
                     <button 

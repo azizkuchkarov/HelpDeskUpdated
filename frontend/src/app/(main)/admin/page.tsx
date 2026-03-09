@@ -29,7 +29,11 @@ const ROLE_OPTIONS = [
   { value: "secretary", label: "Secretary" },
   { value: "transport_engineer", label: "Transport Engineer" },
   { value: "hr_manager", label: "HR Manager" },
+  { value: "inventory_manager", label: "Inventory Manager" },
   { value: "adm_monitoring_manager", label: "Administration Monitoring Manager" },
+  { value: "translator_admin", label: "Translator Admin" },
+  { value: "translator_engineer", label: "Translator Engineer" },
+  { value: "checkin_engineer", label: "Check-in Engineer" },
 ];
 
 type AdminView = "main" | "workflow-approve" | "new-users" | "departments" | "rooms" | "cars" | "drivers" | "topmanagers";
@@ -432,6 +436,22 @@ export default function AdminPage() {
                 <p className="mb-4 text-sm text-slate-600">User → Ticket Engineer; when &quot;Book Hotel&quot; is checked, also → Hotel Engineer</p>
                 {renderRoleBlock("adm_ticket_engineer", "admin.wfTicketEngineer")}
                 {renderRoleBlock("hotel_engineer", "admin.wfHotelEngineer")}
+              </section>
+
+              {/* Translator: User → Translator Admin → Assign Translator + Check-in → Translator Engineer → Check-in Engineer → User */}
+              <section className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
+                <h2 className="mb-4 text-lg font-semibold text-slate-900">Translator</h2>
+                <p className="mb-4 text-sm text-slate-600">User → Translator Admin assigns Translator Engineer + Check-in Engineer → Translator translates → Check-in approves → User gets final files</p>
+                {renderRoleBlock("translator_admin", "admin.wfTranslatorAdmin")}
+                {renderRoleBlock("translator_engineer", "admin.wfTranslatorEngineer")}
+                {renderRoleBlock("checkin_engineer", "admin.wfCheckinEngineer")}
+              </section>
+
+              {/* Inventory: Manager assigns items to users */}
+              <section className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
+                <h2 className="mb-4 text-lg font-semibold text-slate-900">Inventory</h2>
+                <p className="mb-4 text-sm text-slate-600">Inventory Manager adds items (PC, Phone, etc.) and assigns them to users. Responsible: Djalilov Dilmurod, Musabaed Abubakir.</p>
+                {renderRoleBlock("inventory_manager", "admin.wfInventoryManager")}
               </section>
 
               {/* Top Managers: Secretary → Top managers */}

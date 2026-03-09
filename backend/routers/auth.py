@@ -23,12 +23,17 @@ class UserResponse(BaseModel):
     ldap_username: str
     display_name: str | None
     email: str | None
+    phone_number: str | None
     department_id: int | None
     roles: list[dict]
     approver_id: int | None
 
     class Config:
         from_attributes = True
+
+
+class UserUpdatePhone(BaseModel):
+    phone_number: str | None = None
 
 
 @router.post("/login")
@@ -112,7 +117,16 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
         ldap_username=user.ldap_username,
         display_name=user.display_name,
         email=user.email,
+        phone_number=user.phone_number,
         department_id=user.department_id,
         roles=roles,
         approver_id=approver_id,
     )
+
+
+@router.patch("/me")
+def update_me(body: UserUpdatePhone, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Update current user's phone number (saved for next request)."""
+    user.phone_number = (body.phone_number or "").strip() or None
+    db.commit()
+    return {"ok": True, "phone_number": user.phone_number}

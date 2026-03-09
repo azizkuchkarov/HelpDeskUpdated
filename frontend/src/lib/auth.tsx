@@ -8,6 +8,7 @@ type User = {
   ldap_username: string;
   display_name: string;
   email: string;
+  phone_number?: string | null;
   department_id: number | null;
   roles: { role_type: string; section: string | null }[];
   approver_id: number | null;

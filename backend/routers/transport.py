@@ -11,6 +11,7 @@ from models.user import User, UserRole
 from models.department import Department
 from models.transport import TransportTicket, TransportTicketType, Car, Driver
 from models.file_attachment import FileAttachment
+from models.ticket_comment import TicketComment
 from services.minio_service import upload_file, get_presigned_url, stream_object, content_disposition_for_filename
 
 router = APIRouter()
@@ -41,11 +42,28 @@ class TransportTicketCreate(BaseModel):
     approximate_time: Optional[str] = None  # 30m, 1h, 1h 30m, 2h, and more
     comment: Optional[str] = None
     approver_id: Optional[int] = None  # per-ticket approver (must be from same department)
+    requester_phone: Optional[str] = None
 
 
 class AssignCarDriver(BaseModel):
     car_id: int
     driver_id: int
+
+
+class CommentCreate(BaseModel):
+    body: str
+
+
+def _can_access_transport_ticket(ticket: TransportTicket, user: User, db: Session) -> bool:
+    if ticket.created_by_id == user.id:
+        return True
+    if ticket.approver_id == user.id:
+        return True
+    if _is_transport_engineer(user, db):
+        return True
+    if _is_hr_manager(user, db):
+        return True
+    return False
 
 
 @router.get("/cars")
@@ -89,6 +107,7 @@ def list_tickets(
             "status": t.status,
             "created_by_id": t.created_by_id,
             "created_by_name": t.created_by.display_name or t.created_by.ldap_username,
+            "requester_phone": getattr(t, "requester_phone", None),
             "approver_id": t.approver_id,
             "approver_name": t.approver.display_name or t.approver.ldap_username if t.approver else None,
             "manager_approved_at": t.manager_approved_at.isoformat() if t.manager_approved_at else None,
@@ -97,6 +116,7 @@ def list_tickets(
             "driver_id": t.driver_id,
             "car_name": t.car.name if t.car else None,
             "driver_name": t.driver.name if t.driver else None,
+            "driver_phone": t.driver.phone if t.driver else None,
             "ready_at": t.ready_at.isoformat() if t.ready_at else None,
             "closed_at": t.closed_at.isoformat() if t.closed_at else None,
             "created_at": t.created_at.isoformat() if t.created_at else None,
@@ -171,6 +191,9 @@ def create_ticket(d: TransportTicketCreate, db: Session = Depends(get_db), user:
             raise HTTPException(400, "Approver must be from your department")
         approver_id = approver.id
 
+    phone = (d.requester_phone or "").strip() or None
+    if phone:
+        user.phone_number = phone
     ticket = TransportTicket(
         ticket_type=d.ticket_type,
         priority=priority,
@@ -182,6 +205,7 @@ def create_ticket(d: TransportTicketCreate, db: Session = Depends(get_db), user:
         approximate_time=d.approximate_time,
         comment=d.comment,
         created_by_id=user.id,
+        requester_phone=phone or user.phone_number,
         approver_id=approver_id,
         status="open",
     )
@@ -279,6 +303,70 @@ def confirm_by_user(ticket_id: int, db: Session = Depends(get_db), user: User = 
     ticket.confirmed_by_user_at = datetime.utcnow()
     db.commit()
     return {"ok": True}
+
+
+@router.get("/tickets/{ticket_id}/comments")
+def list_comments(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """List comments on a Transport ticket. Same access as viewing the ticket."""
+    ticket = db.query(TransportTicket).get(ticket_id)
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+    if not _can_access_transport_ticket(ticket, user, db):
+        raise HTTPException(403, "Access denied")
+    comments = (
+        db.query(TicketComment)
+        .filter(TicketComment.ticket_type == "transport", TicketComment.ticket_id == ticket_id)
+        .order_by(TicketComment.created_at)
+        .all()
+    )
+    return [
+        {
+            "id": c.id,
+            "author_id": c.author_id,
+            "author_name": c.author.display_name or c.author.ldap_username,
+            "body": c.body,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in comments
+    ]
+
+
+@router.post("/tickets/{ticket_id}/comments")
+def add_comment(
+    ticket_id: int,
+    d: CommentCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Add a comment. Any user with access to the ticket can comment."""
+    ticket = db.query(TransportTicket).get(ticket_id)
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+    if not _can_access_transport_ticket(ticket, user, db):
+        raise HTTPException(403, "Access denied")
+    body = (d.body or "").strip()
+    if not body:
+        raise HTTPException(400, "Comment body is required")
+    comment = TicketComment(
+        ticket_type="transport",
+        ticket_id=ticket_id,
+        author_id=user.id,
+        body=body,
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return {
+        "id": comment.id,
+        "author_id": comment.author_id,
+        "author_name": user.display_name or user.ldap_username,
+        "body": comment.body,
+        "created_at": comment.created_at.isoformat() if comment.created_at else None,
+    }
 
 
 @router.post("/tickets/{ticket_id}/files")

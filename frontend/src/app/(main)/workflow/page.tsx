@@ -7,6 +7,7 @@ const SECTIONS = [
   { id: "administration", steps: ["step1", "step2", "step3"] },
   { id: "transport", steps: ["step1", "step2", "step3", "step4"] },
   { id: "travel", steps: ["step1", "step2", "step3", "step4"] },
+  { id: "translator", steps: ["step1", "step2", "step3", "step4", "step5"] },
   { id: "topManagers", steps: ["step1", "step2"] },
 ] as const;
 

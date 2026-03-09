@@ -47,6 +47,10 @@ export default function AdministrationPage() {
   const [modal, setModal] = useState<"new" | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [filterType, setFilterType] = useState<string>("");
+  const [comments, setComments] = useState<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [newCommentBody, setNewCommentBody] = useState("");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
@@ -81,14 +85,23 @@ export default function AdministrationPage() {
   useEffect(() => {
     if (detailId == null) {
       setFiles([]);
+      setComments([]);
       return;
     }
     setFilesLoading(true);
-    admApi
-      .listFiles(detailId)
-      .then(setFiles)
-      .catch(() => setFiles([]))
-      .finally(() => setFilesLoading(false));
+    setCommentsLoading(true);
+    Promise.all([
+      admApi.listFiles(detailId).catch(() => []),
+      admApi.getComments(detailId).catch(() => []),
+    ])
+      .then(([filesData, commentsData]) => {
+        setFiles(filesData);
+        setComments(commentsData);
+      })
+      .finally(() => {
+        setFilesLoading(false);
+        setCommentsLoading(false);
+      });
   }, [detailId]);
 
   async function createTicket(e: React.FormEvent) {
@@ -129,6 +142,18 @@ export default function AdministrationPage() {
   async function confirmByUser(id: number) {
     await admApi.confirmByUser(id);
     load();
+  }
+
+  async function submitComment() {
+    if (!detailId || !newCommentBody.trim()) return;
+    setCommentSubmitting(true);
+    try {
+      const added = await admApi.addComment(detailId, newCommentBody.trim());
+      setComments((prev) => [...prev, added]);
+      setNewCommentBody("");
+    } finally {
+      setCommentSubmitting(false);
+    }
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>, ticketId: number) {
@@ -269,22 +294,72 @@ export default function AdministrationPage() {
                 <button type="button" onClick={() => setDetailId(null)} className="btn-jira-secondary">×</button>
               </div>
             </div>
-            <div className="jira-drawer-body">
-              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+            <div className="jira-drawer-body space-y-6">
+              <div className="flex flex-wrap gap-2">
                 <PriorityBadge priority={detailTicket.priority || "medium"} />
                 <StatusBadge status={detailTicket.status} label={statusLabels[detailTicket.status]} />
-                <span className="jira-badge" style={{ backgroundColor: "#dfe1e6", color: "#172b4d" }}>{TYPES.find((x) => x.value === detailTicket.ticket_type) ? t(TYPES.find((x) => x.value === detailTicket.ticket_type)!.key) : detailTicket.ticket_type}</span>
-                {detailTicket.requires_it && <span style={{ fontSize: 12, color: "var(--jira-accent)" }}>+ IT</span>}
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                  {TYPES.find((x) => x.value === detailTicket.ticket_type) ? t(TYPES.find((x) => x.value === detailTicket.ticket_type)!.key) : detailTicket.ticket_type}
+                </span>
+                {detailTicket.requires_it && <span className="inline-flex items-center rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-700">+ IT</span>}
               </div>
-              <div className="jira-field-label">Description</div>
-              <div className="jira-description">{detailTicket.description || "No description."}</div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Description</h3>
+                <p className="whitespace-pre-wrap text-sm text-slate-700">{detailTicket.description || "No description."}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{t("it.comments")}</h3>
+                {commentsLoading ? (
+                  <p className="text-sm text-slate-500">{t("common.loading")}</p>
+                ) : (
+                  <>
+                    <ul className="mb-4 space-y-3">
+                      {comments.length === 0 ? (
+                        <li className="text-sm text-slate-500">{t("it.noComments")}</li>
+                      ) : (
+                        comments.map((c) => (
+                          <li key={c.id} className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                              <span className="font-medium">{c.author_name}</span>
+                              <span>{c.created_at ? formatDateUTC5(c.created_at) : ""}</span>
+                            </div>
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{c.body}</p>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                    <div className="space-y-2">
+                      <textarea
+                        value={newCommentBody}
+                        onChange={(e) => setNewCommentBody(e.target.value)}
+                        placeholder={t("it.addCommentPlaceholder")}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 min-h-[80px] resize-y"
+                        rows={3}
+                      />
+                      <button
+                        type="button"
+                        onClick={submitComment}
+                        disabled={!newCommentBody.trim() || commentSubmitting}
+                        className="btn-jira-primary"
+                      >
+                        {commentSubmitting ? t("common.loading") : t("it.addComment")}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
               {detailTicket.meeting_booking && (
-                <>
-                  <div className="jira-field-label">Meeting</div>
-                  <div className="jira-field-value">{formatDateUTC5(detailTicket.meeting_booking.start_at)} – {formatDateUTC5(detailTicket.meeting_booking.end_at)?.slice(-5)}</div>
-                </>
+                <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                  <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-blue-800">{t("administration.meetingRoom")}</h3>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Time</span>
+                    <span className="font-medium text-slate-800">
+                      {formatDateUTC5(detailTicket.meeting_booking.start_at)} – {formatDateUTC5(detailTicket.meeting_booking.end_at)?.slice(11, 16)}
+                    </span>
+                  </div>
+                </div>
               )}
-              <div style={{ display: "flex", gap: 8, marginTop: 24 }}>
+              <div className="flex flex-wrap gap-2">
                 {isEngineer && detailTicket.status === "open" && (
                   <>
                     <button type="button" onClick={() => rejectTicket(detailTicket.id)} className="btn-jira-secondary" style={{ backgroundColor: "#de350b", color: "white", borderColor: "#de350b" }}>Reject</button>
@@ -293,34 +368,28 @@ export default function AdministrationPage() {
                 )}
                 {detailTicket.created_by_id === user?.id && detailTicket.status === "closed_by_engineer" && <button type="button" onClick={() => confirmByUser(detailTicket.id)} className="btn-jira-primary">{t("it.confirmClose")}</button>}
               </div>
-              <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #dfe1e6" }}>
-                <div className="jira-field-label">Attachments</div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Attachments</h3>
                 {filesLoading ? (
-                  <div className="jira-field-value">Loading...</div>
+                  <p className="text-sm text-slate-500">Loading...</p>
                 ) : (
                   <>
                     {files.length === 0 ? (
-                      <div className="jira-field-value">No attachments</div>
+                      <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">No attachments</p>
                     ) : (
-                      <ul style={{ marginBottom: 16, listStyle: "none", padding: 0 }}>
+                      <ul className="mb-4 space-y-2">
                         {files.map((f) => (
-                          <li key={f.id} style={{ marginBottom: 8, padding: 8, backgroundColor: "#f4f5f7", borderRadius: 4 }}>
-                            <button
-                              type="button"
-                              onClick={() => handleFileDownload(f.id, f.file_name)}
-                              style={{ color: "#0052CC", textDecoration: "none", background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 14 }}
-                            >
+                          <li key={f.id} className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-4 py-3 transition hover:bg-slate-50">
+                            <button type="button" onClick={() => handleFileDownload(f.id, f.file_name)} className="text-left font-medium text-primary-600 hover:underline">
                               {f.file_name}
                             </button>
-                            <div style={{ fontSize: 12, color: "#6b778c", marginTop: 4 }}>
-                              {formatFileSize(f.file_size)} · Uploaded by {f.uploaded_by_name} · {formatDateUTC5(f.created_at)}
-                            </div>
+                            <span className="text-xs text-slate-500">{formatFileSize(f.file_size)} · {f.uploaded_by_name}</span>
                           </li>
                         ))}
                       </ul>
                     )}
                     {(isEngineer || detailTicket.created_by_id === user?.id) && (
-                      <div style={{ marginTop: 12 }}>
+                      <div className="mt-3">
                         <input
                           type="file"
                           id="adm-file-upload"
@@ -330,8 +399,7 @@ export default function AdministrationPage() {
                         />
                         <label
                           htmlFor="adm-file-upload"
-                          className="btn-jira-secondary"
-                          style={{ display: "inline-block", cursor: fileUploading ? "not-allowed" : "pointer", opacity: fileUploading ? 0.5 : 1 }}
+                          className={`btn-jira-secondary inline-block ${fileUploading ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
                         >
                           {fileUploading ? "Uploading..." : "Upload File"}
                         </label>

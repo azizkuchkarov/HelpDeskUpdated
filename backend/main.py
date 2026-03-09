@@ -18,12 +18,16 @@ from models import (  # noqa: F401 - register all tables
     Driver,
     TravelTicket,
     TravelTicketStat,
+    TranslatorTicket,
+    InventoryType,
+    InventoryItem,
     TopManager,
     SecretaryTopManager,
     TopManagerAvailability,
     FileAttachment,
+    TicketComment,
 )
-from routers import auth, admin, it, administration, transport, travel, top_managers
+from routers import auth, admin, it, administration, transport, travel, top_managers, translator, inventory
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -52,6 +56,8 @@ app.include_router(administration.router, prefix="/api/administration", tags=["a
 app.include_router(transport.router, prefix="/api/transport", tags=["transport"])
 app.include_router(travel.router, prefix="/api/travel", tags=["travel"])
 app.include_router(top_managers.router, prefix="/api/top-managers", tags=["top-managers"])
+app.include_router(translator.router, prefix="/api/translator", tags=["translator"])
+app.include_router(inventory.router, prefix="/api/inventory", tags=["inventory"])
 
 
 @app.get("/api/health")

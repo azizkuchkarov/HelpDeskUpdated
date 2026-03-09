@@ -385,44 +385,48 @@ export default function ITTicketsPage() {
                 <p className="text-slate-500">{t("common.loading")}</p>
               )}
               {detail && !detailLoading && (
-                <>
-                  <div className="mb-4 flex flex-wrap gap-2">
+                <div className="space-y-6">
+                  <div className="flex flex-wrap gap-2">
                     <PriorityBadge priority={detail.priority || "medium"} />
-                    <StatusBadge
-                      status={detail.status}
-                      label={statusLabel[detail.status]}
-                    />
+                    <StatusBadge status={detail.status} label={statusLabel[detail.status]} />
                     {detail.problem_type && (
-                      <span className="inline-flex items-center rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                      <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                         {detail.problem_type}
                       </span>
                     )}
                     {detail.assigned_engineer_name && (
-                      <span className="text-xs text-slate-500">
+                      <span className="inline-flex items-center rounded-full bg-primary-50 px-3 py-1 text-xs font-medium text-primary-800">
                         Assignee: {detail.assigned_engineer_name}
                       </span>
                     )}
                   </div>
+
                   {detail.problem_type && (
-                    <p className={labelClass}>{t("it.problemType", "Problem type")}</p>
-                  )}
-                  {detail.problem_type && (
-                    <div className="mb-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                      {detail.problem_type}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                      <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">{t("it.problemType", "Problem type")}</h3>
+                      <p className="font-medium text-slate-800">{detail.problem_type}</p>
                     </div>
                   )}
-                  <p className={labelClass}>Description</p>
-                  <div className="mb-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-700 whitespace-pre-wrap">
-                    {detail.description || "No description."}
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Description</h3>
+                    <p className="whitespace-pre-wrap text-sm text-slate-700">{detail.description || "No description."}</p>
                   </div>
-                  <p className={labelClass}>Details</p>
-                  <p className="mb-4 text-sm text-slate-700">
-                    Created: {formatDateUTC5(detail.created_at)} · Closed:{" "}
-                    {detail.closed_at
-                      ? formatDateUTC5(detail.closed_at)
-                      : "—"}
-                  </p>
-                  <div className="mt-6 flex flex-wrap gap-2">
+
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Details</h3>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Created</span>
+                        <span className="font-medium text-slate-800">{formatDateUTC5(detail.created_at)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Closed</span>
+                        <span className="font-medium text-slate-800">{detail.closed_at ? formatDateUTC5(detail.closed_at) : "—"}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
                     {isAdmin && detail.status === "open" && (
                       <button
                         type="button"
@@ -470,10 +474,8 @@ export default function ITTicketsPage() {
                         </button>
                       )}
                   </div>
-                  <div className="mt-6 border-t border-slate-200 pt-4">
-                    <p className={labelClass}>
-                      {t("it.comments")}
-                    </p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{t("it.comments")}</h3>
                     {commentsLoading ? (
                       <p className="text-sm text-slate-500">{t("common.loading")}</p>
                     ) : (
@@ -487,7 +489,7 @@ export default function ITTicketsPage() {
                             comments.map((c) => (
                               <li
                                 key={c.id}
-                                className="rounded-lg bg-slate-50 px-3 py-2 text-sm"
+                                className="rounded-lg border border-slate-100 bg-white px-4 py-3 text-sm"
                               >
                                 <span className="font-medium text-slate-700">
                                   {c.author_name}
@@ -502,44 +504,42 @@ export default function ITTicketsPage() {
                             ))
                           )}
                         </ul>
-                        {(isAdmin || isEngineer) && (
-                          <div className="space-y-2">
-                            <textarea
-                              value={newCommentBody}
-                              onChange={(e) => setNewCommentBody(e.target.value)}
-                              placeholder={t("it.addCommentPlaceholder")}
-                              className={`${inputClass} min-h-[80px] resize-y`}
-                              rows={3}
-                            />
-                            <button
-                              type="button"
-                              onClick={submitComment}
-                              disabled={!newCommentBody.trim() || commentSubmitting}
-                              className={btnPrimary}
-                            >
-                              {commentSubmitting
-                                ? t("common.loading")
-                                : t("it.addComment")}
-                            </button>
-                          </div>
-                        )}
+                        <div className="space-y-2">
+                          <textarea
+                            value={newCommentBody}
+                            onChange={(e) => setNewCommentBody(e.target.value)}
+                            placeholder={t("it.addCommentPlaceholder")}
+                            className={`${inputClass} min-h-[80px] resize-y`}
+                            rows={3}
+                          />
+                          <button
+                            type="button"
+                            onClick={submitComment}
+                            disabled={!newCommentBody.trim() || commentSubmitting}
+                            className={btnPrimary}
+                          >
+                            {commentSubmitting
+                              ? t("common.loading")
+                              : t("it.addComment")}
+                          </button>
+                        </div>
                       </>
                     )}
                   </div>
-                  <div className="mt-6 border-t border-slate-200 pt-4">
-                    <p className={labelClass}>Attachments</p>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                    <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Attachments</h3>
                     {filesLoading ? (
                       <p className="text-sm text-slate-500">{t("common.loading")}</p>
                     ) : (
                       <>
                         {files.length === 0 ? (
-                          <p className="text-sm text-slate-500">No attachments</p>
+                          <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">No attachments</p>
                         ) : (
                           <ul className="mb-4 space-y-2">
                             {files.map((f) => (
                               <li
                                 key={f.id}
-                                className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm"
+                                className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-4 py-3 transition hover:bg-slate-50"
                               >
                                 <div className="flex-1 min-w-0">
                                   <button
@@ -575,7 +575,7 @@ export default function ITTicketsPage() {
                       </>
                     )}
                   </div>
-                </>
+                </div>
               )}
             </div>
           </div>

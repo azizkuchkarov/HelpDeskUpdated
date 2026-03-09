@@ -22,6 +22,7 @@ type Ticket = {
   status: string;
   created_by_id: number;
   created_by_name: string;
+  requester_phone: string | null;
   approver_id: number | null;
   approver_name: string | null;
   manager_approved_at: string | null;
@@ -30,6 +31,7 @@ type Ticket = {
   driver_id: number | null;
   car_name: string | null;
   driver_name: string | null;
+  driver_phone: string | null;
   ready_at: string | null;
   closed_at: string | null;
   created_at: string;
@@ -64,9 +66,14 @@ export default function TransportPage() {
     passenger_count: 1,
     approximate_time: "",
     comment: "",
+    requester_phone: "",
   });
   const [selectedApproverId, setSelectedApproverId] = useState<number | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [comments, setComments] = useState<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [newCommentBody, setNewCommentBody] = useState("");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [files, setFiles] = useState<FileAttachment[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
@@ -100,16 +107,31 @@ export default function TransportPage() {
   }, []);
 
   useEffect(() => {
+    if (modal === "new" && user?.phone_number && !form.requester_phone) {
+      setForm((f) => ({ ...f, requester_phone: user.phone_number || "" }));
+    }
+  }, [modal, user?.phone_number]);
+
+  useEffect(() => {
     if (detailId == null) {
       setFiles([]);
+      setComments([]);
       return;
     }
     setFilesLoading(true);
-    transportApi
-      .listFiles(detailId)
-      .then(setFiles)
-      .catch(() => setFiles([]))
-      .finally(() => setFilesLoading(false));
+    setCommentsLoading(true);
+    Promise.all([
+      transportApi.listFiles(detailId).catch(() => []),
+      transportApi.getComments(detailId).catch(() => []),
+    ])
+      .then(([filesData, commentsData]) => {
+        setFiles(filesData);
+        setComments(commentsData);
+      })
+      .finally(() => {
+        setFilesLoading(false);
+        setCommentsLoading(false);
+      });
   }, [detailId]);
 
   async function createTicket(e: React.FormEvent) {
@@ -129,9 +151,10 @@ export default function TransportPage() {
       approximate_time: form.approximate_time || undefined,
       comment: form.comment || undefined,
       approver_id: selectedApproverId,
+      requester_phone: form.requester_phone || undefined,
     });
     setModal(null);
-    setForm({ ticket_type: "daily", priority: "medium", from_location: "", destination: "", start_date: "", start_time: "", passenger_count: 1, approximate_time: "", comment: "" });
+    setForm({ ticket_type: "daily", priority: "medium", from_location: "", destination: "", start_date: "", start_time: "", passenger_count: 1, approximate_time: "", comment: "", requester_phone: "" });
     setSelectedApproverId(null);
     load();
   }
@@ -195,6 +218,18 @@ export default function TransportPage() {
     }
   }
 
+  async function submitComment() {
+    if (!detailId || !newCommentBody.trim()) return;
+    setCommentSubmitting(true);
+    try {
+      const added = await transportApi.addComment(detailId, newCommentBody.trim());
+      setComments((prev) => [...prev, added]);
+      setNewCommentBody("");
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }
+
   function formatFileSize(bytes: number): string {
     if (bytes < 1024) return bytes + " B";
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
@@ -215,7 +250,7 @@ export default function TransportPage() {
     closed: t("it.closed"),
   };
 
-  const detailTicket = detailId != null ? tickets.find((x) => x.id === detailId) : null;
+  const detailTicket = detailId != null ? (tickets.find((x) => x.id === detailId) ?? pendingApproval.find((x) => x.id === detailId) ?? null) : null;
 
   return (
     <div className="jira-page">
@@ -314,58 +349,223 @@ export default function TransportPage() {
                 <button type="button" onClick={() => setDetailId(null)} className="btn-jira-secondary">×</button>
               </div>
             </div>
-            <div className="jira-drawer-body">
-              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+            <div className="jira-drawer-body space-y-6">
+              <div className="flex flex-wrap gap-2">
                 <PriorityBadge priority={detailTicket.priority || "medium"} />
                 <StatusBadge status={detailTicket.status} label={statusLabels[detailTicket.status]} />
-                <span className="jira-badge" style={{ backgroundColor: "#dfe1e6", color: "#172b4d" }}>{TYPES.find((x) => x.value === detailTicket.ticket_type) ? t(TYPES.find((x) => x.value === detailTicket.ticket_type)!.key) : detailTicket.ticket_type}</span>
+                <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                  {TYPES.find((x) => x.value === detailTicket.ticket_type) ? t(TYPES.find((x) => x.value === detailTicket.ticket_type)!.key) : detailTicket.ticket_type}
+                </span>
               </div>
-              <div className="jira-field-label">Details</div>
-              {detailTicket.from_location && (
-                <div className="jira-field-value">{t("transport.from", "From")}: {detailTicket.from_location}</div>
+
+              {/* Route */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <span className="text-base">📍</span> {t("transport.destination")}
+                </h3>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {detailTicket.from_location && (
+                    <div>
+                      <p className="text-xs text-slate-500">{t("transport.from", "From")}</p>
+                      <p className="font-medium text-slate-800">{detailTicket.from_location}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-slate-500">{t("transport.destination")}</p>
+                    <p className="font-medium text-slate-800">{detailTicket.destination}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">{t("transport.passengers")}</p>
+                    <p className="font-medium text-slate-800">{detailTicket.passenger_count}</p>
+                  </div>
+                  {detailTicket.start_date && (
+                    <div>
+                      <p className="text-xs text-slate-500">{t("transport.startDate")}</p>
+                      <p className="font-medium text-slate-800">
+                        {detailTicket.start_date?.slice(0, 10) || "—"}
+                        {detailTicket.start_time ? ` · ${detailTicket.start_time}` : ""}
+                      </p>
+                    </div>
+                  )}
+                  {detailTicket.approximate_time && (
+                    <div>
+                      <p className="text-xs text-slate-500">{t("transport.approximateTime", "Approximately using time")}</p>
+                      <p className="font-medium text-slate-800">{detailTicket.approximate_time}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Contact — User & Driver phones */}
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-emerald-800">
+                  <span className="text-base">📞</span> {t("transport.contacts", "Contacts")}
+                </h3>
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-xs text-slate-600">Requester</p>
+                    <p className="font-medium text-slate-800">{detailTicket.created_by_name}</p>
+                    {detailTicket.requester_phone ? (
+                      <a href={`tel:${detailTicket.requester_phone}`} className="mt-1 block text-base font-semibold text-emerald-700 hover:text-emerald-800">
+                        {detailTicket.requester_phone}
+                      </a>
+                    ) : (
+                      <p className="mt-1 text-base font-medium text-slate-500">—</p>
+                    )}
+                  </div>
+                  {detailTicket.driver_name && (
+                    <div className="border-t border-emerald-200/60 pt-3">
+                      <p className="text-xs text-slate-600">{t("transport.driver")}</p>
+                      <p className="font-medium text-slate-800">{detailTicket.driver_name}</p>
+                      {detailTicket.driver_phone ? (
+                        <a href={`tel:${detailTicket.driver_phone}`} className="mt-1 block text-base font-semibold text-emerald-700 hover:text-emerald-800">
+                          {detailTicket.driver_phone}
+                        </a>
+                      ) : (
+                        <p className="mt-1 text-base font-medium text-slate-500">—</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Approvals */}
+              {(detailTicket.approver_name || detailTicket.manager_approved_at || detailTicket.hr_approved_at) && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <span className="text-base">✓</span> Approvals
+                  </h3>
+                  <div className="space-y-2">
+                    {detailTicket.approver_name && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Approver</span>
+                        <span className="font-medium text-slate-800">{detailTicket.approver_name}</span>
+                      </div>
+                    )}
+                    {detailTicket.manager_approved_at && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">Manager</span>
+                        <span className="font-medium text-slate-800">{formatDateUTC5(detailTicket.manager_approved_at)}</span>
+                      </div>
+                    )}
+                    {detailTicket.hr_approved_at && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-500">HR</span>
+                        <span className="font-medium text-slate-800">{formatDateUTC5(detailTicket.hr_approved_at)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
-              <div className="jira-field-value">{t("transport.destination")}: {detailTicket.destination}</div>
-              <div className="jira-field-value">{t("transport.passengers")}: {detailTicket.passenger_count}</div>
-              {detailTicket.approximate_time && (
-                <div className="jira-field-value">{t("transport.approximateTime", "Approximately using time")}: {detailTicket.approximate_time}</div>
+
+              {/* Vehicle */}
+              {detailTicket.car_name && (
+                <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                  <h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-800">
+                    <span className="text-base">🚗</span> {t("transport.car")}
+                  </h3>
+                  <div className="flex flex-wrap gap-4">
+                    <div>
+                      <p className="text-xs text-slate-600">{t("transport.car")}</p>
+                      <p className="font-semibold text-slate-800">{detailTicket.car_name}</p>
+                    </div>
+                    {detailTicket.driver_name && (
+                      <div>
+                        <p className="text-xs text-slate-600">{t("transport.driver")}</p>
+                        <p className="font-semibold text-slate-800">{detailTicket.driver_name}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
-              {detailTicket.start_date && (
-                <div className="jira-field-value">{t("transport.startDate", "Start date")}: {detailTicket.start_date?.slice(0, 10) || "—"} {detailTicket.start_time ? ` · ${detailTicket.start_time}` : ""}</div>
+
+              {/* Status timeline */}
+              {detailTicket.closed_at && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-500">Closed</span>
+                    <span className="font-medium text-slate-800">{formatDateUTC5(detailTicket.closed_at)}</span>
+                  </div>
+                </div>
               )}
-              {detailTicket.approver_name && (
-                <div className="jira-field-value">Approver: {detailTicket.approver_name}</div>
-              )}
-              {detailTicket.comment && (<><div className="jira-field-label">{t("transport.comment")}</div><div className="jira-description">{detailTicket.comment}</div></>)}
-              {detailTicket.car_name && <div className="jira-field-value">{t("transport.car")}: {detailTicket.car_name} · {t("transport.driver")}: {detailTicket.driver_name}</div>}
-              <div style={{ display: "flex", gap: 8, marginTop: 24, flexWrap: "wrap" }}>
+
+              {/* Comments */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">{t("it.comments")}</h3>
+                {detailTicket.comment && (
+                  <p className="mb-3 whitespace-pre-wrap rounded-lg bg-white px-3 py-2 text-sm text-slate-700 border border-slate-100">
+                    <span className="text-xs text-slate-500">{detailTicket.created_by_name} (initial):</span><br />
+                    {detailTicket.comment}
+                  </p>
+                )}
+                {commentsLoading ? (
+                  <p className="text-sm text-slate-500">{t("common.loading")}</p>
+                ) : (
+                  <>
+                    <ul className="mb-4 space-y-3">
+                      {comments.length === 0 && !detailTicket.comment ? (
+                        <li className="text-sm text-slate-500">{t("it.noComments")}</li>
+                      ) : (
+                        comments.map((c) => (
+                          <li key={c.id} className="rounded-lg border border-slate-100 bg-white px-3 py-2">
+                            <div className="flex items-center gap-2 text-xs text-slate-500">
+                              <span className="font-medium">{c.author_name}</span>
+                              <span>{c.created_at ? formatDateUTC5(c.created_at) : ""}</span>
+                            </div>
+                            <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{c.body}</p>
+                          </li>
+                        ))
+                      )}
+                    </ul>
+                    <div className="space-y-2">
+                      <textarea
+                        value={newCommentBody}
+                        onChange={(e) => setNewCommentBody(e.target.value)}
+                        placeholder={t("it.addCommentPlaceholder")}
+                        className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 min-h-[80px] resize-y"
+                        rows={3}
+                      />
+                      <button
+                        type="button"
+                        onClick={submitComment}
+                        disabled={!newCommentBody.trim() || commentSubmitting}
+                        className="btn-jira-primary"
+                      >
+                        {commentSubmitting ? t("common.loading") : t("it.addComment")}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="mt-6 flex flex-wrap gap-2">
                 {detailTicket.status === "open" && detailTicket.created_by_id !== user?.id && <button type="button" onClick={() => managerApprove(detailTicket.id)} className="btn-jira-primary">Manager approve</button>}
                 {isHrManager && detailTicket.status === "manager_approved" && ["overtime", "maxsus"].includes(detailTicket.ticket_type) && <button type="button" onClick={() => hrApprove(detailTicket.id)} className="btn-jira-primary">HR approve</button>}
                 {isTransportEngineer && canAssign(detailTicket) && <button type="button" onClick={() => openAssignModal(detailTicket.id)} className="btn-jira-secondary">Assign car/driver</button>}
                 {isTransportEngineer && detailTicket.status === "assigned" && <button type="button" onClick={() => closeByEngineer(detailTicket.id)} className="btn-jira-primary">Close</button>}
                 {detailTicket.created_by_id === user?.id && detailTicket.status === "assigned" && <button type="button" onClick={() => confirmByUser(detailTicket.id)} className="btn-jira-primary">Confirm</button>}
               </div>
-              <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #dfe1e6" }}>
-                <div className="jira-field-label">Attachments</div>
+              <div className="mt-6 border-t border-slate-200 pt-6">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Attachments</h3>
                 {filesLoading ? (
-                  <div className="jira-field-value">Loading...</div>
+                  <p className="text-sm text-slate-500">Loading...</p>
                 ) : (
                   <>
                     {files.length === 0 ? (
-                      <div className="jira-field-value">No attachments</div>
+                      <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">No attachments</p>
                     ) : (
-                      <ul style={{ marginBottom: 16, listStyle: "none", padding: 0 }}>
+                      <ul className="mb-4 space-y-2">
                         {files.map((f) => (
-                          <li key={f.id} style={{ marginBottom: 8, padding: 8, backgroundColor: "#f4f5f7", borderRadius: 4 }}>
+                          <li key={f.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3 transition hover:bg-slate-100">
                             <button
                               type="button"
                               onClick={() => handleFileDownload(f.id, f.file_name)}
-                              style={{ color: "#0052CC", textDecoration: "none", background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 14 }}
+                              className="text-left font-medium text-primary-600 hover:underline"
                             >
                               {f.file_name}
                             </button>
-                            <div style={{ fontSize: 12, color: "#6b778c", marginTop: 4 }}>
-                              {formatFileSize(f.file_size)} · Uploaded by {f.uploaded_by_name} · {formatDateUTC5(f.created_at)}
-                            </div>
+                            <span className="text-xs text-slate-500">
+                              {formatFileSize(f.file_size)} · {f.uploaded_by_name}
+                            </span>
                           </li>
                         ))}
                       </ul>
@@ -379,8 +579,7 @@ export default function TransportPage() {
                     />
                     <label
                       htmlFor="transport-file-upload"
-                      className="btn-jira-secondary"
-                      style={{ display: "inline-block", cursor: fileUploading ? "not-allowed" : "pointer", opacity: fileUploading ? 0.5 : 1 }}
+                      className={`btn-jira-secondary inline-block cursor-pointer ${fileUploading ? "cursor-not-allowed opacity-50" : ""}`}
                     >
                       {fileUploading ? "Uploading..." : "Upload File"}
                     </label>
@@ -429,6 +628,10 @@ export default function TransportPage() {
                     ))
                   )}
                 </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("common.requesterPhone")}</label>
+                <input type="tel" value={form.requester_phone} onChange={(e) => setForm((f) => ({ ...f, requester_phone: e.target.value }))} className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-slate-900 shadow-sm transition focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20" placeholder={t("common.requesterPhonePlaceholder")} />
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">{t("transport.from", "From")}</label>
