@@ -41,6 +41,8 @@ def upload_file(file_data: bytes, content_type: str, folder: str = "") -> str:
             ext = ".png"
         elif "word" in content_type or "document" in content_type:
             ext = ".docx"
+        elif "spreadsheet" in content_type or "excel" in content_type:
+            ext = ".xlsx"
     name = f"{folder}/{uuid.uuid4()}{ext}" if folder else f"{uuid.uuid4()}{ext}"
     client.put_object(
         _settings.minio_bucket,

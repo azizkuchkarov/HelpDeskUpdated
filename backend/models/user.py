@@ -11,6 +11,7 @@ class RoleType(str, enum.Enum):
     INVENTORY_MANAGER = "inventory_manager"
     IT_ADMIN = "it_admin"
     IT_ENGINEER = "it_engineer"
+    IT_REASSIGN_ENGINEER = "it_reassign_engineer"  # workflow: only these users can reassign IT tickets after initial assign
     ADM_ENGINEER = "adm_engineer"
     ADM_MANAGER = "adm_manager"
     ADM_TICKET_ENGINEER = "adm_ticket_engineer"
@@ -41,6 +42,7 @@ class User(Base):
 
     # Tickets
     it_tickets_created = relationship("ITTicket", foreign_keys="ITTicket.created_by_id", back_populates="created_by")
+    it_tickets_opened_on_behalf = relationship("ITTicket", foreign_keys="ITTicket.opened_on_behalf_by_id", back_populates="opened_on_behalf_by")
     it_tickets_assigned = relationship("ITTicket", foreign_keys="ITTicket.assigned_engineer_id", back_populates="assigned_engineer")
     adm_tickets_created = relationship("AdmTicket", foreign_keys="AdmTicket.created_by_id", back_populates="created_by")
     transport_tickets_created = relationship("TransportTicket", foreign_keys="TransportTicket.created_by_id", back_populates="created_by")

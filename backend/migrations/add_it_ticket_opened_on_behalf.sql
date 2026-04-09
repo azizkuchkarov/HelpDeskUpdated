@@ -1,0 +1,5 @@
+-- Add column for IT tickets opened by IT staff for another user (requester).
+-- SQLite (ignore error if column already exists):
+--   ALTER TABLE it_tickets ADD COLUMN opened_on_behalf_by_id INTEGER REFERENCES users(id);
+-- PostgreSQL:
+--   ALTER TABLE it_tickets ADD COLUMN opened_on_behalf_by_id INTEGER NULL REFERENCES users(id);

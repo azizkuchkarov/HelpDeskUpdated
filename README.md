@@ -1,7 +1,7 @@
 # HelpDesk System
 
 Internal HelpDesk: IT, Administration, Transport, Travel tickets, Top Managers availability.  
-3 languages: English, Russian, Chinese.  
+Languages: English, Russian.  
 Auth: LDAP. DB: PostgreSQL. Files: MinIO.
 
 ## Stack

@@ -109,10 +109,10 @@ export const auth = {
 };
 
 export const admin = {
-  departments: () => api<{ id: number; name: string; name_ru: string | null; name_zh: string | null; manager_id: number | null; manager_name: string | null }[]>("/admin/departments"),
-  createDepartment: (body: { name: string; name_ru?: string; name_zh?: string }) =>
+  departments: () => api<{ id: number; name: string; name_ru: string | null; manager_id: number | null; manager_name: string | null }[]>("/admin/departments"),
+  createDepartment: (body: { name: string; name_ru?: string }) =>
     api("/admin/departments", { method: "POST", body: JSON.stringify(body) }),
-  updateDepartment: (id: number, body: { name?: string; name_ru?: string; name_zh?: string; is_active?: boolean; manager_id?: number | null }) =>
+  updateDepartment: (id: number, body: { name?: string; name_ru?: string; is_active?: boolean; manager_id?: number | null }) =>
     api("/admin/departments/" + id, { method: "PATCH", body: JSON.stringify(body) }),
   users: () => api<AdminUser[]>("/admin/users"),
   setUserDepartment: (userId: number, departmentId: number | null) =>
@@ -124,7 +124,7 @@ export const admin = {
   removeUserRole: (userId: number, roleType: string, section?: string) =>
     api("/admin/users/" + userId + "/roles/" + encodeURIComponent(roleType) + (section ? "?section=" + encodeURIComponent(section) : ""), { method: "DELETE" }),
   meetingRooms: () => api<{ id: number; name: string }[]>("/admin/meeting-rooms"),
-  createMeetingRoom: (body: { name: string; name_ru?: string; name_zh?: string }) =>
+  createMeetingRoom: (body: { name: string; name_ru?: string }) =>
     api("/admin/meeting-rooms", { method: "POST", body: JSON.stringify(body) }),
   cars: () => api<{ id: number; name: string; car_type?: string; brand?: string }[]>("/admin/cars"),
   createCar: (body: { name: string; car_type?: string; brand?: string }) => api("/admin/cars", { method: "POST", body: JSON.stringify(body) }),
@@ -150,10 +150,14 @@ export type ITTicket = {
   status: string;
   created_by_id: number;
   created_by_name: string;
+  opened_on_behalf_by_id?: number | null;
+  opened_on_behalf_name?: string | null;
   assigned_engineer_id: number | null;
   assigned_engineer_name: string | null;
   created_at: string;
   closed_at: string | null;
+  auto_closed_by_system?: boolean;
+  confirmed_by_user_at?: string | null;
 };
 
 export type ITTicketComment = {
@@ -175,6 +179,12 @@ export type FileAttachment = {
 
 export const it = {
   engineers: () => api<{ id: number; display_name: string }[]>("/it/engineers"),
+  departments: () =>
+    api<{ id: number; name: string; name_ru: string | null }[]>("/it/departments"),
+  usersInDepartment: (departmentId: number) =>
+    api<{ id: number; display_name: string; ldap_username: string }[]>(
+      "/it/users-in-department?department_id=" + departmentId
+    ),
   tickets: (params?: { status?: string }) => {
     const q = new URLSearchParams(params as Record<string, string>).toString();
     return api<ITTicket[]>(`/it/tickets${q ? `?${q}` : ""}`);
@@ -183,10 +193,29 @@ export const it = {
   getComments: (ticketId: number) => api<ITTicketComment[]>("/it/tickets/" + ticketId + "/comments"),
   addComment: (ticketId: number, body: string) =>
     api<ITTicketComment>("/it/tickets/" + ticketId + "/comments", { method: "POST", body: JSON.stringify({ body }) }),
-  createTicket: (problemType: string | null, title: string, description?: string, priority?: string) =>
-    api<{ id: number }>("/it/tickets", { method: "POST", body: JSON.stringify({ problem_type: problemType, title, description, priority: priority || "medium" }) }),
+  createTicket: (opts: {
+    problem_type?: string | null;
+    title: string;
+    description?: string;
+    priority?: string;
+    department_id?: number | null;
+    requester_user_id?: number | null;
+  }) =>
+    api<{ id: number }>("/it/tickets", {
+      method: "POST",
+      body: JSON.stringify({
+        problem_type: opts.problem_type ?? null,
+        title: opts.title,
+        description: opts.description,
+        priority: opts.priority || "medium",
+        department_id: opts.department_id ?? null,
+        requester_user_id: opts.requester_user_id ?? null,
+      }),
+    }),
   assign: (ticketId: number, engineerId: number) =>
     api("/it/tickets/" + ticketId + "/assign", { method: "POST", body: JSON.stringify({ engineer_id: engineerId }) }),
+  reassign: (ticketId: number, engineerId: number) =>
+    api("/it/tickets/" + ticketId + "/reassign", { method: "POST", body: JSON.stringify({ engineer_id: engineerId }) }),
   start: (ticketId: number) => api("/it/tickets/" + ticketId + "/start", { method: "POST" }),
   closeByEngineer: (ticketId: number) => api("/it/tickets/" + ticketId + "/close-by-engineer", { method: "POST" }),
   confirmByUser: (ticketId: number) => api("/it/tickets/" + ticketId + "/confirm-by-user", { method: "POST" }),
@@ -487,6 +516,15 @@ export const inventory = {
     api<{ ok: boolean; assigned_to: string }>("/inventory/items/" + itemId + "/assign", { method: "POST", body: JSON.stringify({ user_id: userId }) }),
   unassignItem: (itemId: number) => api<{ ok: boolean }>("/inventory/items/" + itemId + "/unassign", { method: "POST" }),
   users: () => api<{ id: number; display_name: string; ldap_username: string }[]>("/inventory/users"),
+};
+
+export const phoneDirectory = {
+  info: () =>
+    api<{ file_name: string | null; uploaded_at: string | null; uploaded_by_name: string | null }>("/phone-directory/info"),
+  upload: (file: File) =>
+    uploadFileApi<{ ok: boolean; file_name: string; uploaded_at: string }>("/phone-directory/upload", file),
+  download: (fileName: string) =>
+    downloadFileApi("/phone-directory/download", fileName),
 };
 
 export const topManagers = {

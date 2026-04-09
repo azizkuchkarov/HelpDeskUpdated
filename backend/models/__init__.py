@@ -10,6 +10,7 @@ from .top_managers import TopManager, SecretaryTopManager, TopManagerAvailabilit
 from .file_attachment import FileAttachment
 from .ticket_comment import TicketComment
 from .inventory import InventoryType, InventoryItem
+from .phone_directory import PhoneDirectoryFile
 
 __all__ = [
     "Base",
@@ -37,4 +38,5 @@ __all__ = [
     "TicketComment",
     "InventoryType",
     "InventoryItem",
+    "PhoneDirectoryFile",
 ]

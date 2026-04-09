@@ -17,19 +17,19 @@ from models.administration import MeetingRoom
 
 # Default departments (you can modify this list)
 DEFAULT_DEPARTMENTS = [
-    {"name": "IT", "name_ru": "ИТ", "name_zh": "IT"},
-    {"name": "Administration", "name_ru": "Администрация", "name_zh": "行政"},
-    {"name": "Transport", "name_ru": "Транспорт", "name_zh": "运输"},
-    {"name": "HR", "name_ru": "HR", "name_zh": "人力资源"},
-    {"name": "Finance", "name_ru": "Финансы", "name_zh": "财务"},
-    {"name": "Translation", "name_ru": "Перевод", "name_zh": "翻译"},
+    {"name": "IT", "name_ru": "ИТ"},
+    {"name": "Administration", "name_ru": "Администрация"},
+    {"name": "Transport", "name_ru": "Транспорт"},
+    {"name": "HR", "name_ru": "HR"},
+    {"name": "Finance", "name_ru": "Финансы"},
+    {"name": "Translation", "name_ru": "Перевод"},
 ]
 
 # Default meeting rooms
 DEFAULT_MEETING_ROOMS = [
-    {"name": "B Block 401 Left", "name_ru": "Блок B 401 Левая", "name_zh": "B座401左"},
-    {"name": "B Block 402 Right", "name_ru": "Блок B 402 Правая", "name_zh": "B座402右"},
-    {"name": "C Block 106", "name_ru": "Блок C 106", "name_zh": "C座106"},
+    {"name": "B Block 401 Left", "name_ru": "Блок B 401 Левая"},
+    {"name": "B Block 402 Right", "name_ru": "Блок B 402 Правая"},
+    {"name": "C Block 106", "name_ru": "Блок C 106"},
 ]
 
 
@@ -42,7 +42,6 @@ def seed_departments(db: Session):
             dept = Department(
                 name=dept_data["name"],
                 name_ru=dept_data.get("name_ru"),
-                name_zh=dept_data.get("name_zh"),
                 is_active=True,
             )
             db.add(dept)
@@ -63,7 +62,6 @@ def seed_meeting_rooms(db: Session):
             room = MeetingRoom(
                 name=room_data["name"],
                 name_ru=room_data.get("name_ru"),
-                name_zh=room_data.get("name_zh"),
                 is_active=True,
             )
             db.add(room)

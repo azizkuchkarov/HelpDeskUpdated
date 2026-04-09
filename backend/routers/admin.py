@@ -18,13 +18,11 @@ router = APIRouter()
 class DepartmentCreate(BaseModel):
     name: str
     name_ru: Optional[str] = None
-    name_zh: Optional[str] = None
 
 
 class DepartmentUpdate(BaseModel):
     name: Optional[str] = None
     name_ru: Optional[str] = None
-    name_zh: Optional[str] = None
     is_active: Optional[bool] = None
     manager_id: Optional[int] = None
 
@@ -54,7 +52,6 @@ def list_departments(db: Session = Depends(get_db), _=Depends(get_current_admin)
             "id": d.id,
             "name": d.name,
             "name_ru": d.name_ru,
-            "name_zh": d.name_zh,
             "manager_id": d.manager_id,
             "manager_name": d.manager.display_name or d.manager.ldap_username if d.manager else None,
         }
@@ -64,7 +61,7 @@ def list_departments(db: Session = Depends(get_db), _=Depends(get_current_admin)
 
 @router.post("/departments")
 def create_department(d: DepartmentCreate, db: Session = Depends(get_db), _=Depends(get_current_admin)):
-    dept = Department(name=d.name, name_ru=d.name_ru, name_zh=d.name_zh)
+    dept = Department(name=d.name, name_ru=d.name_ru)
     db.add(dept)
     db.commit()
     db.refresh(dept)
@@ -80,8 +77,6 @@ def update_department(dept_id: int, d: DepartmentUpdate, db: Session = Depends(g
         dept.name = d.name
     if d.name_ru is not None:
         dept.name_ru = d.name_ru
-    if d.name_zh is not None:
-        dept.name_zh = d.name_zh
     if d.is_active is not None:
         dept.is_active = d.is_active
     if d.manager_id is not None:
@@ -100,7 +95,6 @@ def update_department(dept_id: int, d: DepartmentUpdate, db: Session = Depends(g
         "id": dept.id,
         "name": dept.name,
         "name_ru": dept.name_ru,
-        "name_zh": dept.name_zh,
         "manager_id": dept.manager_id,
         "manager_name": dept.manager.display_name or dept.manager.ldap_username if dept.manager else None,
     }
@@ -194,7 +188,6 @@ def remove_user_role(user_id: int, role_type: str, section: Optional[str] = None
 class MeetingRoomCreate(BaseModel):
     name: str
     name_ru: Optional[str] = None
-    name_zh: Optional[str] = None
 
 
 @router.get("/meeting-rooms")
@@ -204,7 +197,7 @@ def list_meeting_rooms(db: Session = Depends(get_db), _=Depends(get_current_admi
 
 @router.post("/meeting-rooms")
 def create_meeting_room(d: MeetingRoomCreate, db: Session = Depends(get_db), _=Depends(get_current_admin)):
-    room = MeetingRoom(name=d.name, name_ru=d.name_ru, name_zh=d.name_zh)
+    room = MeetingRoom(name=d.name, name_ru=d.name_ru)
     db.add(room)
     db.commit()
     db.refresh(room)

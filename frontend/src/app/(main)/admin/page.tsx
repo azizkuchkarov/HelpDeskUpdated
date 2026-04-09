@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useLocale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { admin as adminApi } from "@/lib/api";
 
-type Department = { id: number; name: string; name_ru: string | null; name_zh: string | null; manager_id: number | null; manager_name: string | null };
+type Department = { id: number; name: string; name_ru: string | null; manager_id: number | null; manager_name: string | null };
 type UserRow = {
   id: number;
   ldap_username: string;
@@ -22,6 +23,7 @@ const ROLE_OPTIONS = [
   { value: "manager", label: "Manager" },
   { value: "it_admin", label: "IT Admin" },
   { value: "it_engineer", label: "IT Engineer" },
+  { value: "it_reassign_engineer", label: "IT Reassign Engineer" },
   { value: "adm_engineer", label: "Administration Engineer" },
   { value: "adm_manager", label: "Administration Manager" },
   { value: "adm_ticket_engineer", label: "Administration Ticket Engineer" },
@@ -65,7 +67,7 @@ export default function AdminPage() {
   const [topManagers, setTopManagers] = useState<{ id: number; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<string | null>(null);
-  const [deptForm, setDeptForm] = useState({ name: "", name_ru: "", name_zh: "" });
+  const [deptForm, setDeptForm] = useState({ name: "", name_ru: "" });
   const [editingDeptId, setEditingDeptId] = useState<number | null>(null);
   const [editingTmId, setEditingTmId] = useState<number | null>(null);
   const [roomForm, setRoomForm] = useState({ name: "" });
@@ -189,19 +191,19 @@ export default function AdminPage() {
 
   async function createDepartment(e: React.FormEvent) {
     e.preventDefault();
-    await adminApi.createDepartment({ name: deptForm.name, name_ru: deptForm.name_ru || undefined, name_zh: deptForm.name_zh || undefined });
+    await adminApi.createDepartment({ name: deptForm.name, name_ru: deptForm.name_ru || undefined });
     setModal(null);
-    setDeptForm({ name: "", name_ru: "", name_zh: "" });
+    setDeptForm({ name: "", name_ru: "" });
     load();
   }
 
   async function updateDepartment(e: React.FormEvent) {
     e.preventDefault();
     if (!editingDeptId) return;
-    await adminApi.updateDepartment(editingDeptId, { name: deptForm.name, name_ru: deptForm.name_ru || undefined, name_zh: deptForm.name_zh || undefined });
+    await adminApi.updateDepartment(editingDeptId, { name: deptForm.name, name_ru: deptForm.name_ru || undefined });
     setModal(null);
     setEditingDeptId(null);
-    setDeptForm({ name: "", name_ru: "", name_zh: "" });
+    setDeptForm({ name: "", name_ru: "" });
     load();
   }
 
@@ -371,6 +373,24 @@ export default function AdminPage() {
           <p className="page-subtitle">Manage departments, users, rooms, cars, drivers and top managers.</p>
           <h2 className="mb-4 mt-10 text-xs font-semibold uppercase tracking-wider text-slate-500">Sections</h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Link
+              href="/phone-directory"
+              className="group flex flex-col rounded-card border border-slate-200 bg-white p-5 text-left shadow-card transition-all hover:border-primary-200 hover:shadow-card-hover focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2"
+            >
+              <span className="flex items-center gap-3">
+                <span className="flex size-10 items-center justify-center rounded-lg bg-primary-100 text-primary-600 transition group-hover:bg-primary-200">
+                  <svg className="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </span>
+                <span className="font-semibold text-slate-900">{t("nav.phoneDirectory")}</span>
+              </span>
+              <span className="mt-2 text-sm text-slate-500">{t("phoneDirectory.uploadSection")}</span>
+              <span className="mt-3 inline-flex items-center text-sm font-medium text-primary-600 group-hover:text-primary-700">
+                {t("dashboard.goTo")}
+                <svg className="ml-1 size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+              </span>
+            </Link>
             {adminSections.map(({ id, key, descKey, icon }) => (
               <button
                 key={id}
@@ -411,6 +431,9 @@ export default function AdminPage() {
                 <p className="mb-4 text-sm text-slate-600">User → IT Admin → Assign Engineer</p>
                 {renderRoleBlock("it_admin", "admin.wfItAdmin")}
                 {renderRoleBlock("it_engineer", "admin.wfItEngineer")}
+                <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">{t("admin.wfItReassignSectionTitle")}</p>
+                <p className="mb-4 text-sm text-slate-600">{t("admin.wfItReassignEngineerDesc")}</p>
+                {renderRoleBlock("it_reassign_engineer", "admin.wfItReassignEngineer")}
               </section>
 
               {/* Administration: User → Administration Engineer → Close */}
@@ -490,7 +513,7 @@ export default function AdminPage() {
         <>
           <div className="page-header">
             <h1 className="page-title">{t("admin.departments")}</h1>
-            <button type="button" onClick={() => { setModal("dept"); setEditingDeptId(null); setDeptForm({ name: "", name_ru: "", name_zh: "" }); }} className={btnPrimary}>
+            <button type="button" onClick={() => { setModal("dept"); setEditingDeptId(null); setDeptForm({ name: "", name_ru: "" }); }} className={btnPrimary}>
               {t("admin.addDepartment")}
             </button>
           </div>
@@ -508,12 +531,12 @@ export default function AdminPage() {
                     className="flex w-full items-center justify-between px-4 py-3 text-left transition hover:bg-slate-50"
                   >
                     <span className="font-medium text-slate-900">
-                      {d.name} {d.name_ru && `(${d.name_ru})`} {d.name_zh && `(${d.name_zh})`}
+                      {d.name} {d.name_ru && `(${d.name_ru})`}
                     </span>
                     <span className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); setEditingDeptId(d.id); setDeptForm({ name: d.name, name_ru: d.name_ru || "", name_zh: d.name_zh || "" }); setModal("dept-edit"); }}
+                        onClick={(e) => { e.stopPropagation(); setEditingDeptId(d.id); setDeptForm({ name: d.name, name_ru: d.name_ru || "" }); setModal("dept-edit"); }}
                         className={btnSecondary + " text-sm"}
                       >
                         {t("common.edit")}
@@ -703,7 +726,6 @@ export default function AdminPage() {
             <form onSubmit={createDepartment}>
               <div className="mb-3"><label className={labelClass}>Name (EN)</label><input value={deptForm.name} onChange={(e) => setDeptForm((f) => ({ ...f, name: e.target.value }))} className={inputClass} required /></div>
               <div className="mb-3"><label className={labelClass}>Name (RU)</label><input value={deptForm.name_ru} onChange={(e) => setDeptForm((f) => ({ ...f, name_ru: e.target.value }))} className={inputClass} /></div>
-              <div className="mb-4"><label className={labelClass}>Name (ZH)</label><input value={deptForm.name_zh} onChange={(e) => setDeptForm((f) => ({ ...f, name_zh: e.target.value }))} className={inputClass} /></div>
               <div className="flex gap-2"><button type="submit" className={btnPrimary}>{t("common.save")}</button><button type="button" onClick={() => setModal(null)} className={btnSecondary}>{t("common.cancel")}</button></div>
             </form>
           </div>
@@ -717,7 +739,6 @@ export default function AdminPage() {
             <form onSubmit={updateDepartment}>
               <div className="mb-3"><label className={labelClass}>Name (EN)</label><input value={deptForm.name} onChange={(e) => setDeptForm((f) => ({ ...f, name: e.target.value }))} className={inputClass} required /></div>
               <div className="mb-3"><label className={labelClass}>Name (RU)</label><input value={deptForm.name_ru} onChange={(e) => setDeptForm((f) => ({ ...f, name_ru: e.target.value }))} className={inputClass} /></div>
-              <div className="mb-4"><label className={labelClass}>Name (ZH)</label><input value={deptForm.name_zh} onChange={(e) => setDeptForm((f) => ({ ...f, name_zh: e.target.value }))} className={inputClass} /></div>
               <div className="flex gap-2"><button type="submit" className={btnPrimary}>{t("common.save")}</button><button type="button" onClick={() => setModal(null)} className={btnSecondary}>{t("common.cancel")}</button></div>
             </form>
           </div>

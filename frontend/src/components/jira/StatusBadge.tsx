@@ -9,15 +9,15 @@ const STATUS_CONFIG: Record<
     label: "Open",
   },
   assigned: {
-    className: "bg-primary-100 text-primary-800",
+    className: "bg-red-100 text-red-950 ring-1 ring-red-300/70",
     label: "Assigned",
   },
   in_progress: {
-    className: "bg-primary-100 text-primary-800",
+    className: "bg-pink-100 text-pink-950 ring-1 ring-pink-300/70",
     label: "In progress",
   },
   closed_by_engineer: {
-    className: "bg-emerald-100 text-emerald-800",
+    className: "bg-amber-200 text-amber-950 ring-1 ring-amber-400/60",
     label: "Closed by engineer",
   },
   closed: {

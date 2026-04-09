@@ -11,6 +11,13 @@ import PriorityBadge from "@/components/jira/PriorityBadge";
 import StatusBadge from "@/components/jira/StatusBadge";
 import Link from "next/link";
 
+const quickAccessLinks = [
+  { href: "/it", key: "nav.it", icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" },
+  { href: "/administration", key: "nav.administration", icon: "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" },
+  { href: "/transport", key: "nav.transport", icon: "M8 7h8m-8 4h8m-2 4l2 2 4-4" },
+  { href: "/phone-directory", key: "nav.phoneDirectory", icon: "M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" },
+];
+
 type TicketSection = "active" | "approvals" | "assigned" | "archive";
 
 export default function DashboardPage() {
@@ -182,11 +189,24 @@ export default function DashboardPage() {
     const itTicket = type === "it" ? ticket as ITTicket : null;
     const admTicket = type === "admin" ? ticket as AdmTicket : null;
 
+    const itSt = type === "it" ? (ticket as ITTicket).status : null;
+    const itCardClass =
+      itSt === "assigned"
+        ? "border-red-300 bg-red-50/90 hover:border-red-400"
+        : itSt === "in_progress"
+          ? "border-pink-300 bg-pink-50/90 hover:border-pink-400"
+          : itSt === "closed_by_engineer"
+            ? "border-amber-300 bg-amber-50/90 hover:border-amber-400"
+            : "border-slate-200 bg-white hover:border-primary-300";
+
     return (
       <Link
         key={`${type}-${ticket.id}`}
         href={getTicketLink()}
-        className="group flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition-all hover:border-primary-300 hover:shadow-md"
+        className={
+          "group flex flex-col gap-3 rounded-lg border p-4 shadow-sm transition-all hover:shadow-md " +
+          (type === "it" ? itCardClass : "border-slate-200 bg-white hover:border-primary-300")
+        }
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1">
@@ -382,6 +402,29 @@ export default function DashboardPage() {
           >
             Archive
           </button>
+        </div>
+      </div>
+
+      <div className="mb-8">
+        <h3 className="mb-4 text-lg font-semibold text-slate-900">{t("dashboard.quickAccess")}</h3>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {quickAccessLinks.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-primary-300 hover:shadow-md"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} />
+                </svg>
+              </div>
+              <div>
+                <span className="font-medium text-slate-900">{t(item.key)}</span>
+                <span className="ml-1 text-sm text-primary-600">→</span>
+              </div>
+            </Link>
+          ))}
         </div>
       </div>
 

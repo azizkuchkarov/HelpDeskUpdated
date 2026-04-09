@@ -13,14 +13,17 @@ class ITTicket(Base):
     description = Column(Text, nullable=True)
     priority = Column(String(20), default="medium")  # low, medium, high, urgent
     status = Column(String(50), default="open")  # open, assigned, in_progress, closed_by_engineer, confirmed_by_user, closed
-    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # requester (who confirms close)
+    opened_on_behalf_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)  # IT who created ticket for requester
     assigned_engineer_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     closed_at = Column(DateTime, nullable=True)
     confirmed_by_user_at = Column(DateTime, nullable=True)
+    auto_closed_by_system = Column(Boolean, default=False, nullable=False)  # True if closed after 48h without user confirm
 
     created_by = relationship("User", foreign_keys=[created_by_id], back_populates="it_tickets_created")
+    opened_on_behalf_by = relationship("User", foreign_keys=[opened_on_behalf_by_id], back_populates="it_tickets_opened_on_behalf")
     assigned_engineer = relationship("User", foreign_keys=[assigned_engineer_id], back_populates="it_tickets_assigned")
     comments = relationship("ITTicketComment", back_populates="ticket", order_by="ITTicketComment.created_at")
 

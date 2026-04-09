@@ -78,13 +78,15 @@ def list_tickets(
     is_checkin = _is_checkin_engineer(user, db)
     if not is_admin and not is_trans and not is_checkin:
         q = q.filter(TranslatorTicket.created_by_id == user.id)
-    elif is_trans and not is_admin:
+    elif is_trans or is_checkin:
+        # Translator and/or Check-in Engineer: see tickets assigned to them OR open
+        from sqlalchemy import or_
         q = q.filter(
-            (TranslatorTicket.assigned_translator_id == user.id) | (TranslatorTicket.status == "open")
-        )
-    elif is_checkin and not is_admin:
-        q = q.filter(
-            (TranslatorTicket.assigned_checkin_id == user.id) | (TranslatorTicket.status == "open")
+            or_(
+                TranslatorTicket.assigned_translator_id == user.id,
+                TranslatorTicket.assigned_checkin_id == user.id,
+                TranslatorTicket.status == "open",
+            )
         )
     if status:
         q = q.filter(TranslatorTicket.status == status)

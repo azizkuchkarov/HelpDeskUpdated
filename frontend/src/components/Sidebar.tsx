@@ -22,6 +22,7 @@ const nav: NavItem[] = [
   { href: "/inventory", key: "nav.inventory" },
   { href: "/top-managers", key: "nav.topManagers" },
   { href: "/workflow", key: "nav.workflow" },
+  { href: "/phone-directory", key: "nav.phoneDirectory" },
   { href: "http://portal.atg.uz/", key: "nav.documentControl", external: true },
   { href: "http://budget.atg.uz/login", key: "nav.budgetManagement", external: true },
   { href: "/admin", key: "nav.admin", adminOnly: true },
