@@ -12,6 +12,7 @@ from models.it import ITTicket, ITTicketComment
 from models.department import Department
 from models.file_attachment import FileAttachment
 from services.minio_service import upload_file, get_presigned_url, stream_object, content_disposition_for_filename
+from services.telegram_service import notify_it_new_ticket, notify_it_assigned
 
 router = APIRouter()
 
@@ -253,6 +254,14 @@ def create_ticket(d: ITTicketCreate, db: Session = Depends(get_db), user: User =
     db.add(ticket)
     db.commit()
     db.refresh(ticket)
+    created_by_name = ticket.created_by.display_name or ticket.created_by.ldap_username
+    notify_it_new_ticket(
+        db=db,
+        ticket_id=ticket.id,
+        title=ticket.title,
+        priority=ticket.priority or "medium",
+        created_by_name=created_by_name,
+    )
     return {"id": ticket.id, "status": "open", "message": "Ticket created"}
 
 
@@ -270,6 +279,9 @@ def assign_ticket(
         raise HTTPException(404, "Ticket not found or not open")
     ticket.assigned_engineer_id = d.engineer_id
     ticket.status = "assigned"
+    assignee = db.query(User).get(d.engineer_id)
+    if assignee:
+        notify_it_assigned(ticket_id=ticket.id, title=ticket.title, assignee=assignee)
     db.commit()
     return {"ok": True, "status": "assigned"}
 

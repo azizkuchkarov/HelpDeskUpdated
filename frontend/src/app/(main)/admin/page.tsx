@@ -12,6 +12,7 @@ type UserRow = {
   ldap_username: string;
   display_name: string;
   email: string;
+  telegram_chat_id?: string | null;
   department_id: number | null;
   roles: { role_type: string; section: string | null }[];
   approver_id: number | null;
@@ -78,6 +79,7 @@ export default function AdminPage() {
   const [secretaryLink, setSecretaryLink] = useState({ secretary_id: 0, top_manager_id: 0 });
   const [expandedDeptId, setExpandedDeptId] = useState<number | null>(null);
   const [workflowAddSelection, setWorkflowAddSelection] = useState<Record<string, number>>({});
+  const [telegramDraftByUser, setTelegramDraftByUser] = useState<Record<number, string>>({});
 
   const isAdmin = currentUser?.roles?.some((r) => r.role_type === "global_admin") ?? false;
 
@@ -91,10 +93,11 @@ export default function AdminPage() {
     return users.filter((u) => !u.roles.some((r) => r.role_type === roleType));
   }
 
-  function renderRoleBlock(roleType: string, labelKey: string) {
+  function renderRoleBlock(roleType: string, labelKey: string, options?: { allowTelegramChatId?: boolean }) {
     const list = usersWithRole(roleType);
     const available = usersWithoutRole(roleType);
     const selected = workflowAddSelection[roleType];
+    const allowTelegramChatId = options?.allowTelegramChatId ?? false;
     return (
       <div key={roleType} className="mb-4">
         <p className={labelClass}>{t(labelKey)}</p>
@@ -103,10 +106,47 @@ export default function AdminPage() {
             <span className="text-sm text-slate-500">—</span>
           ) : (
             list.map((u) => (
-              <span key={u.id} className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-2 py-1 text-sm">
-                {u.display_name || u.ldap_username}
+              <div key={u.id} className="inline-flex flex-wrap items-center gap-2 rounded-lg bg-slate-100 px-2 py-1 text-sm">
+                <span>{u.display_name || u.ldap_username}</span>
+                {allowTelegramChatId && (
+                  <>
+                    <input
+                      type="text"
+                      value={telegramDraftByUser[u.id] ?? (u.telegram_chat_id || "")}
+                      onChange={(e) => setTelegramDraftByUser((s) => ({ ...s, [u.id]: e.target.value }))}
+                      placeholder={t("admin.telegramChatId")}
+                      className="w-44 rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const value = (telegramDraftByUser[u.id] ?? (u.telegram_chat_id || "")).trim();
+                        await adminApi.setUserTelegramChatId(u.id, value || null);
+                        load();
+                      }}
+                      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      {t("common.save")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await adminApi.testUserTelegram(u.id);
+                          alert(t("admin.telegramTestSent"));
+                        } catch (e) {
+                          const msg = e instanceof Error ? e.message : String(e);
+                          alert(msg);
+                        }
+                      }}
+                      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                    >
+                      {t("admin.telegramTest")}
+                    </button>
+                  </>
+                )}
                 <button type="button" onClick={() => removeRole(u.id, roleType)} className="text-red-600 hover:underline">×</button>
-              </span>
+              </div>
             ))
           )}
           {available.length > 0 && (
@@ -429,8 +469,8 @@ export default function AdminPage() {
               <section className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
                 <h2 className="mb-4 text-lg font-semibold text-slate-900">IT Section</h2>
                 <p className="mb-4 text-sm text-slate-600">User → IT Admin → Assign Engineer</p>
-                {renderRoleBlock("it_admin", "admin.wfItAdmin")}
-                {renderRoleBlock("it_engineer", "admin.wfItEngineer")}
+                {renderRoleBlock("it_admin", "admin.wfItAdmin", { allowTelegramChatId: true })}
+                {renderRoleBlock("it_engineer", "admin.wfItEngineer", { allowTelegramChatId: true })}
                 <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">{t("admin.wfItReassignSectionTitle")}</p>
                 <p className="mb-4 text-sm text-slate-600">{t("admin.wfItReassignEngineerDesc")}</p>
                 {renderRoleBlock("it_reassign_engineer", "admin.wfItReassignEngineer")}
@@ -449,7 +489,7 @@ export default function AdminPage() {
                 <p className="mb-2 text-sm text-slate-600">Daily: User → Department Manager Approve → Transport Engineer</p>
                 <p className="mb-2 text-sm text-slate-500">{t("admin.wfDeptManagerNote")}</p>
                 <p className="mb-4 text-sm text-slate-600">Overtime: User → Manager approve → HR Approve → Transport Engineer</p>
-                {renderRoleBlock("transport_engineer", "admin.wfTransportEngineer")}
+                {renderRoleBlock("transport_engineer", "admin.wfTransportEngineer", { allowTelegramChatId: true })}
                 {renderRoleBlock("hr_manager", "admin.wfHrManager")}
               </section>
 
@@ -457,8 +497,8 @@ export default function AdminPage() {
               <section className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
                 <h2 className="mb-4 text-lg font-semibold text-slate-900">Ticket Section (Travel)</h2>
                 <p className="mb-4 text-sm text-slate-600">User → Ticket Engineer; when &quot;Book Hotel&quot; is checked, also → Hotel Engineer</p>
-                {renderRoleBlock("adm_ticket_engineer", "admin.wfTicketEngineer")}
-                {renderRoleBlock("hotel_engineer", "admin.wfHotelEngineer")}
+                {renderRoleBlock("adm_ticket_engineer", "admin.wfTicketEngineer", { allowTelegramChatId: true })}
+                {renderRoleBlock("hotel_engineer", "admin.wfHotelEngineer", { allowTelegramChatId: true })}
               </section>
 
               {/* Translator: User → Translator Admin → Assign Translator + Check-in → Translator Engineer → Check-in Engineer → User */}

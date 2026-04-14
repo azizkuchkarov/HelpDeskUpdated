@@ -18,6 +18,7 @@ from models.travel import TravelTicket, TravelTicketStat
 from models.file_attachment import FileAttachment
 from models.ticket_comment import TicketComment
 from services.minio_service import upload_file, get_presigned_url, stream_object, content_disposition_for_filename
+from services.telegram_service import notify_travel_new_ticket, notify_travel_hotel_booking
 
 # Load local places (offline autocomplete)
 LOCAL_PLACES: list[dict] = []
@@ -93,6 +94,14 @@ class TravelTicketStatCreate(BaseModel):
     date_time: str
     company: str
     price: float
+    currency: str = "UZS"
+
+
+def _normalize_currency(value: Optional[str]) -> str:
+    currency = (value or "UZS").upper()
+    if currency not in {"UZS", "USD", "CNY"}:
+        return "UZS"
+    return currency
 
 
 @router.get("/places")
@@ -205,6 +214,20 @@ def create_ticket(d: TravelTicketCreate, db: Session = Depends(get_db), user: Us
     db.add(ticket)
     db.commit()
     db.refresh(ticket)
+    created_by_name = ticket.created_by.display_name or ticket.created_by.ldap_username
+    notify_travel_new_ticket(
+        db=db,
+        ticket_id=ticket.id,
+        priority=ticket.priority or "medium",
+        created_by_name=created_by_name,
+        book_hotel=bool(ticket.book_hotel),
+    )
+    if ticket.book_hotel:
+        notify_travel_hotel_booking(
+            db=db,
+            ticket_id=ticket.id,
+            created_by_name=created_by_name,
+        )
     return {"id": ticket.id, "status": "open", "message": "Ticket created"}
 
 
@@ -262,6 +285,7 @@ def list_stats(db: Session = Depends(get_db), user: User = Depends(get_current_u
             "date_time": s.date_time,
             "company": s.company,
             "price": float(s.price) if s.price else None,
+            "currency": _normalize_currency(getattr(s, "currency", "UZS")),
             "created_at": s.created_at.isoformat() if s.created_at else None,
         }
         for s in stats
@@ -279,6 +303,7 @@ def create_stat(d: TravelTicketStatCreate, db: Session = Depends(get_db), user: 
         date_time=d.date_time,
         company=d.company,
         price=Decimal(str(d.price)),
+        currency=_normalize_currency(d.currency),
     )
     db.add(stat)
     db.commit()
@@ -289,6 +314,7 @@ def create_stat(d: TravelTicketStatCreate, db: Session = Depends(get_db), user: 
 class TravelTicketStatUpdate(BaseModel):
     company: str
     price: float
+    currency: str = "UZS"
 
 
 @router.patch("/stats/{stat_id}")
@@ -301,6 +327,7 @@ def update_stat(stat_id: int, d: TravelTicketStatUpdate, db: Session = Depends(g
         raise HTTPException(404, "Stat not found")
     stat.company = d.company
     stat.price = Decimal(str(d.price))
+    stat.currency = _normalize_currency(d.currency)
     db.commit()
     return {"ok": True, "id": stat.id}
 

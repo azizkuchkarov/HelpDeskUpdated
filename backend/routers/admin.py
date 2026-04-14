@@ -10,6 +10,7 @@ from models.department import Department
 from models.administration import MeetingRoom
 from models.transport import Car, Driver
 from models.top_managers import TopManager, SecretaryTopManager, TopManagerAvailability
+from services.telegram_service import send_test_message_to_user
 
 router = APIRouter()
 
@@ -42,6 +43,11 @@ class UserRoleSet(BaseModel):
 class UserDepartmentSet(BaseModel):
     user_id: int
     department_id: Optional[int] = None  # None to remove from department
+
+
+class UserTelegramChatSet(BaseModel):
+    user_id: int
+    telegram_chat_id: Optional[str] = None
 
 
 @router.get("/departments")
@@ -109,6 +115,7 @@ def list_users(db: Session = Depends(get_db), _=Depends(get_current_admin)):
             "ldap_username": u.ldap_username,
             "display_name": u.display_name,
             "email": u.email,
+            "telegram_chat_id": u.telegram_chat_id,
             "department_id": u.department_id,
             "roles": [{"role_type": r.role_type, "section": r.section} for r in u.roles],
             "approver_id": u.approver.approver_id if u.approver else None,
@@ -139,6 +146,30 @@ def set_user_department(d: UserDepartmentSet, db: Session = Depends(get_db), _=D
                 db.add(UserApprover(user_id=user.id, approver_id=dept.manager_id, department_id=d.department_id))
     db.commit()
     return {"ok": True}
+
+
+@router.post("/users/set-telegram-chat-id")
+def set_user_telegram_chat_id(d: UserTelegramChatSet, db: Session = Depends(get_db), _=Depends(get_current_admin)):
+    user = db.query(User).get(d.user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    value = (d.telegram_chat_id or "").strip()
+    user.telegram_chat_id = value or None
+    db.commit()
+    return {"ok": True, "user_id": user.id, "telegram_chat_id": user.telegram_chat_id}
+
+
+@router.post("/users/{user_id}/test-telegram")
+def test_user_telegram(user_id: int, db: Session = Depends(get_db), _=Depends(get_current_admin)):
+    user = db.query(User).get(user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    if not (user.telegram_chat_id or "").strip():
+        raise HTTPException(400, "User telegram_chat_id is empty")
+    ok = send_test_message_to_user(user)
+    if not ok:
+        raise HTTPException(400, "Telegram test send failed. Check backend logs and bot/chat settings.")
+    return {"ok": True, "message": "Telegram test sent"}
 
 
 @router.post("/users/set-approver")

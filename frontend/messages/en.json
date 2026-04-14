@@ -77,7 +77,11 @@
     "colPriority": "Priority",
     "colStatus": "Status",
     "colClosed": "Closed",
-    "colAssignee": "Assignee"
+    "colAssignee": "Assignee",
+    "activeThisMonth": "Active this month",
+    "noActiveThisMonth": "No open tickets created this month. Expand a month below to see older tickets.",
+    "expandMonthSection": "Show tickets",
+    "hideMonthSection": "Hide tickets"
   },
   "administration": {
     "title": "Administration",
@@ -126,7 +130,12 @@
     "addSegment": "Add segment",
     "stats": "Statistics",
     "company": "Company",
-    "price": "Price"
+    "price": "Price",
+    "activeThisMonth": "Active this month",
+    "noActiveThisMonth": "No open travel tickets created this month. Expand a month below to see closed tickets.",
+    "expandMonthSection": "Show tickets",
+    "hideMonthSection": "Hide tickets",
+    "closedLabel": "Closed"
   },
   "topManagers": {
     "title": "Top Managers Availability",
@@ -178,6 +187,9 @@
     "wfDeptManagerNote": "Department Manager is set in Departments (Approver for the whole department).",
     "wfAddRole": "Add",
     "wfLinkSecretary": "Link Secretary to Top Manager",
+    "telegramChatId": "Telegram chat ID",
+    "telegramTest": "Test",
+    "telegramTestSent": "Test message sent",
     "deptManager": "Department Manager (Approver)",
     "selectManager": "Select manager"
   },

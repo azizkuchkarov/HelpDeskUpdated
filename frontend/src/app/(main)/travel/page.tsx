@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
-import { travel as travelApi, type FileAttachment, type TravelPlace } from "@/lib/api";
-import { formatDateUTC5 } from "@/lib/dateUtils";
+import { travel as travelApi, type FileAttachment, type TravelPlace, type TravelStatCurrency } from "@/lib/api";
+import {
+  formatDateUTC5,
+  getYearMonthKeyUTC5,
+  getCurrentYearMonthKeyUTC5,
+  formatMonthHeadingUTC5,
+} from "@/lib/dateUtils";
 import PriorityBadge from "@/components/jira/PriorityBadge";
 import StatusBadge from "@/components/jira/StatusBadge";
 
@@ -29,17 +34,31 @@ type Stat = {
   date_time: string;
   company: string;
   price: number | null;
+  currency: TravelStatCurrency;
   created_at: string;
 };
 
+type TravelMonthSection = {
+  key: string;
+  yearMonth: string;
+  variant: "currentClosed" | "archive";
+  tickets: Ticket[];
+};
+
+type TravelStatsMonthSection = {
+  key: string;
+  yearMonth: string;
+  items: Stat[];
+};
+
 export default function TravelPage() {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const { user } = useAuth();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [stats, setStats] = useState<Stat[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"tickets" | "stats">("tickets");
-  const [modal, setModal] = useState<"new" | "stat" | null>(null);
+  const [modal, setModal] = useState<"new" | "stat" | "edit-stat" | null>(null);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [comments, setComments] = useState<{ id: number; author_id: number; author_name: string; body: string; created_at: string | null }[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -56,6 +75,8 @@ export default function TravelPage() {
   const [statForm, setStatForm] = useState<{
     travel_ticket_id: number;
     username: string;
+    mode: "total" | "segment";
+    total: { company: string; price: number; currency: TravelStatCurrency };
     segments: Array<{
       source: string;
       destination: string;
@@ -63,15 +84,26 @@ export default function TravelPage() {
       time: string;
       company: string;
       price: number;
+      currency: TravelStatCurrency;
     }>;
   }>({
     travel_ticket_id: 0,
     username: "",
+    mode: "total",
+    total: { company: "", price: 0, currency: "UZS" },
     segments: [],
+  });
+  const [editingStat, setEditingStat] = useState<Stat | null>(null);
+  const [editStatForm, setEditStatForm] = useState<{ company: string; price: number; currency: TravelStatCurrency }>({
+    company: "",
+    price: 0,
+    currency: "UZS",
   });
   const [placeSuggestions, setPlaceSuggestions] = useState<TravelPlace[]>([]);
   const [placeSuggestOpen, setPlaceSuggestOpen] = useState<{ segmentIndex: number; field: "source" | "destination" } | null>(null);
   const placeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({});
+  const [openStatsAccordions, setOpenStatsAccordions] = useState<Record<string, boolean>>({});
 
   const isTicketEngineer = user?.roles?.some((r) => r.role_type === "adm_ticket_engineer") ?? false;
   const isHotelEngineer = user?.roles?.some((r) => r.role_type === "hotel_engineer") ?? false;
@@ -214,20 +246,48 @@ export default function TravelPage() {
 
   async function createStat(e: React.FormEvent) {
     e.preventDefault();
-    // Create stat for each segment
-    for (const segment of statForm.segments) {
-      if (!segment.company || !segment.price) continue; // Skip if company or price is missing
+    let createdCount = 0;
+    if (statForm.mode === "total") {
+      if (!statForm.total.company || !statForm.total.price) {
+        alert("Company va price kiriting.");
+        return;
+      }
+      const route = statForm.segments.map((s) => `${s.source} → ${s.destination}`).join(" | ");
+      const dateTime = statForm.segments
+        .map((s) => `${s.date}${s.time ? " " + s.time : ""}`.trim())
+        .filter(Boolean)
+        .join(" | ");
       await travelApi.createStat({
         travel_ticket_id: statForm.travel_ticket_id,
         username: statForm.username,
-        source_destination: `${segment.source} → ${segment.destination}`,
-        date_time: `${segment.date}${segment.time ? " " + segment.time : ""}`,
-        company: segment.company,
-        price: segment.price,
+        source_destination: route || "—",
+        date_time: dateTime || "—",
+        company: statForm.total.company,
+        price: statForm.total.price,
+        currency: statForm.total.currency,
       });
+      createdCount = 1;
+    } else {
+      for (const segment of statForm.segments) {
+        if (!segment.company || !segment.price) continue;
+        await travelApi.createStat({
+          travel_ticket_id: statForm.travel_ticket_id,
+          username: statForm.username,
+          source_destination: `${segment.source} → ${segment.destination}`,
+          date_time: `${segment.date}${segment.time ? " " + segment.time : ""}`,
+          company: segment.company,
+          price: segment.price,
+          currency: segment.currency,
+        });
+        createdCount += 1;
+      }
+      if (createdCount === 0) {
+        alert("Segmentlar uchun kamida bitta company va price kiriting.");
+        return;
+      }
     }
     setModal(null);
-    setStatForm({ travel_ticket_id: 0, username: "", segments: [] });
+    setStatForm({ travel_ticket_id: 0, username: "", mode: "total", total: { company: "", price: 0, currency: "UZS" }, segments: [] });
     // Reload both tickets and stats
     await load();
   }
@@ -237,6 +297,7 @@ export default function TravelPage() {
     setEditStatForm({
       company: stat.company,
       price: stat.price || 0,
+      currency: stat.currency || "UZS",
     });
     setModal("edit-stat");
   }
@@ -247,10 +308,11 @@ export default function TravelPage() {
     await travelApi.updateStat(editingStat.id, {
       company: editStatForm.company,
       price: editStatForm.price,
+      currency: editStatForm.currency,
     });
     setModal(null);
     setEditingStat(null);
-    setEditStatForm({ company: "", price: 0 });
+    setEditStatForm({ company: "", price: 0, currency: "UZS" });
     // Reload both tickets and stats
     await load();
   }
@@ -314,6 +376,154 @@ export default function TravelPage() {
   const detailTicket = detailId != null ? tickets.find((t) => t.id === detailId) : null;
   const statusLabels: Record<string, string> = { open: "Open", closed: "Closed", rejected: "Rejected" };
 
+  const { currentMonthKey, currentMonthOpen, monthSections } = useMemo(() => {
+    const byMonth = new Map<string, Ticket[]>();
+    for (const ticket of tickets) {
+      const key = getYearMonthKeyUTC5(ticket.created_at);
+      if (!key) continue;
+      if (!byMonth.has(key)) byMonth.set(key, []);
+      byMonth.get(key)!.push(ticket);
+    }
+    const sortDesc = (a: Ticket, b: Ticket) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    const currentKey = getCurrentYearMonthKeyUTC5();
+    const currentOpen = (byMonth.get(currentKey) ?? [])
+      .filter((x) => x.status !== "closed")
+      .sort(sortDesc);
+    const sortedKeys = Array.from(byMonth.keys()).sort((a, b) => b.localeCompare(a));
+    const sections: TravelMonthSection[] = [];
+    for (const mk of sortedKeys) {
+      const raw = byMonth.get(mk) ?? [];
+      const sorted = [...raw].sort(sortDesc);
+      if (mk === currentKey) {
+        const closedOnly = sorted.filter((t) => t.status === "closed");
+        if (closedOnly.length) {
+          sections.push({
+            key: `${mk}-closed`,
+            yearMonth: mk,
+            variant: "currentClosed",
+            tickets: closedOnly,
+          });
+        }
+      } else if (sorted.length) {
+        sections.push({
+          key: `m-${mk}`,
+          yearMonth: mk,
+          variant: "archive",
+          tickets: sorted,
+        });
+      }
+    }
+    return {
+      currentMonthKey: currentKey,
+      currentMonthOpen: currentOpen,
+      monthSections: sections,
+    };
+  }, [tickets]);
+
+  const { currentStatsMonthKey, statsMonthSections } = useMemo(() => {
+    const byMonth = new Map<string, Stat[]>();
+    for (const stat of stats) {
+      const key = getYearMonthKeyUTC5(stat.created_at);
+      if (!key) continue;
+      if (!byMonth.has(key)) byMonth.set(key, []);
+      byMonth.get(key)!.push(stat);
+    }
+    const sortDesc = (a: Stat, b: Stat) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    const currentKey = getCurrentYearMonthKeyUTC5();
+    const sortedKeys = Array.from(byMonth.keys()).sort((a, b) => b.localeCompare(a));
+    const sections: TravelStatsMonthSection[] = sortedKeys.map((mk) => ({
+      key: `s-${mk}`,
+      yearMonth: mk,
+      items: [...(byMonth.get(mk) ?? [])].sort(sortDesc),
+    }));
+    return {
+      currentStatsMonthKey: currentKey,
+      statsMonthSections: sections,
+    };
+  }, [stats]);
+
+  const toggleAccordion = useCallback((key: string) => {
+    setOpenAccordions((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const toggleStatsAccordion = useCallback((key: string) => {
+    setOpenStatsAccordions((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  function renderTicketsList(list: Ticket[]) {
+    return (
+      <>
+        <div className="ticket-cards">
+          {list.map((ticket) => {
+            const segs = parseSegments(ticket.source_destination_json);
+            const summary = segs.length ? `${segs[0].source} → ${segs[0].destination}${segs.length > 1 ? " …" : ""}` : "—";
+            return (
+              <button
+                key={ticket.id}
+                type="button"
+                onClick={() => setDetailId(ticket.id)}
+                className="ticket-card w-full text-left"
+              >
+                <div className="ticket-card-header">
+                  <span className="ticket-card-key">TRV-{ticket.id}</span>
+                  <span className="text-xs text-slate-500">
+                    {formatDateUTC5(ticket.created_at)}
+                  </span>
+                </div>
+                <p className="ticket-card-title">{summary}</p>
+                <div className="ticket-card-meta">
+                  <span>{ticket.created_by_name ?? "—"}</span>
+                  {ticket.closed_at && (
+                    <span>Closed {formatDateUTC5(ticket.closed_at)}</span>
+                  )}
+                </div>
+                <div className="ticket-card-badges">
+                  <PriorityBadge priority={ticket.priority || "medium"} />
+                  <StatusBadge status={ticket.status} label={statusLabels[ticket.status] || ticket.status} />
+                  {ticket.book_hotel && <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800">Hotel</span>}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+        <div className="jira-issue-list jira-issue-list--7col ticket-table-wrap">
+          <div className="jira-issue-row jira-issue-row-header">
+            <span>Key</span>
+            <span>Summary</span>
+            <span>Requester</span>
+            <span>Time</span>
+            <span>Priority</span>
+            <span>Status</span>
+            <span>Closed</span>
+          </div>
+          {list.map((ticket) => {
+            const segs = parseSegments(ticket.source_destination_json);
+            return (
+              <div
+                key={ticket.id}
+                className="jira-issue-row"
+                onClick={() => setDetailId(ticket.id)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === "Enter" && setDetailId(ticket.id)}
+              >
+                <span className="jira-issue-key">TRV-{ticket.id}</span>
+                <span className="jira-issue-summary">{segs.length ? `${segs[0].source} → ${segs[0].destination}${segs.length > 1 ? " …" : ""}` : "—"}</span>
+                <span className="jira-issue-meta" title={ticket.created_by_name}>{ticket.created_by_name ?? "—"}</span>
+                <span className="jira-issue-meta whitespace-nowrap text-[11px]">{formatDateUTC5(ticket.created_at)}</span>
+                <span className="flex items-center gap-1 flex-wrap"><PriorityBadge priority={ticket.priority || "medium"} />{ticket.book_hotel && <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800">Hotel</span>}</span>
+                <span><StatusBadge status={ticket.status} label={statusLabels[ticket.status] || ticket.status} /></span>
+                <span className="jira-issue-meta whitespace-nowrap text-[11px]">{formatDateUTC5(ticket.closed_at)}</span>
+              </div>
+            );
+          })}
+        </div>
+      </>
+    );
+  }
+
   return (
     <div className="jira-page">
       <div className="jira-page-header">
@@ -329,113 +539,153 @@ export default function TravelPage() {
         <p className="jira-muted">{t("common.loading")}</p>
       ) : tab === "tickets" ? (
         <>
-          {/* Mobile: card list */}
-          <div className="ticket-cards">
-            {tickets.map((ticket) => {
-              const segs = parseSegments(ticket.source_destination_json);
-              const summary = segs.length ? `${segs[0].source} → ${segs[0].destination}${segs.length > 1 ? " …" : ""}` : "—";
-              return (
-                <button
-                  key={ticket.id}
-                  type="button"
-                  onClick={() => setDetailId(ticket.id)}
-                  className="ticket-card w-full text-left"
-                >
-                  <div className="ticket-card-header">
-                    <span className="ticket-card-key">TRV-{ticket.id}</span>
-                    <span className="text-xs text-slate-500">
-                      {formatDateUTC5(ticket.created_at)}
-                    </span>
-                  </div>
-                  <p className="ticket-card-title">{summary}</p>
-                  <div className="ticket-card-meta">
-                    <span>{ticket.created_by_name ?? "—"}</span>
-                    {ticket.closed_at && (
-                      <span>Closed {formatDateUTC5(ticket.closed_at)}</span>
-                    )}
-                  </div>
-                  <div className="ticket-card-badges">
-                    <PriorityBadge priority={ticket.priority || "medium"} />
-                    <StatusBadge status={ticket.status} label={statusLabels[ticket.status] || ticket.status} />
-                    {ticket.book_hotel && <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800">Hotel</span>}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {/* Desktop: grid table */}
-          <div className="jira-issue-list jira-issue-list--7col ticket-table-wrap">
-            <div className="jira-issue-row jira-issue-row-header">
-              <span>Key</span>
-              <span>Summary</span>
-              <span>Requester</span>
-              <span>Time</span>
-              <span>Priority</span>
-              <span>Status</span>
-              <span>Closed</span>
-            </div>
-            {tickets.map((ticket) => {
-              const segs = parseSegments(ticket.source_destination_json);
+          <div className="space-y-4">
+            <section className="it-list-shell overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm">
+              <div className="border-b border-slate-200/80 bg-gradient-to-r from-slate-50/90 to-white px-4 py-3 sm:px-5">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+                  {t("travel.activeThisMonth")}
+                </h2>
+                <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+                  {currentMonthKey ? formatMonthHeadingUTC5(currentMonthKey, locale) : ""}
+                </p>
+              </div>
+              <div className="p-3 sm:p-4">
+                {currentMonthOpen.length === 0 ? (
+                  <p className="py-6 text-center text-sm leading-relaxed text-slate-500">
+                    {t("travel.noActiveThisMonth")}
+                  </p>
+                ) : (
+                  renderTicketsList(currentMonthOpen)
+                )}
+              </div>
+            </section>
+
+            {monthSections.map((section) => {
+              const isOpen = !!openAccordions[section.key];
+              const heading =
+                section.variant === "currentClosed"
+                  ? `${formatMonthHeadingUTC5(section.yearMonth, locale)} — ${t("travel.closedLabel")}`
+                  : formatMonthHeadingUTC5(section.yearMonth, locale);
               return (
                 <div
-                  key={ticket.id}
-                  className="jira-issue-row"
-                  onClick={() => setDetailId(ticket.id)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => e.key === "Enter" && setDetailId(ticket.id)}
+                  key={section.key}
+                  className="it-list-shell overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm"
                 >
-                  <span className="jira-issue-key">TRV-{ticket.id}</span>
-                  <span className="jira-issue-summary">{segs.length ? `${segs[0].source} → ${segs[0].destination}${segs.length > 1 ? " …" : ""}` : "—"}</span>
-                  <span className="jira-issue-meta" title={ticket.created_by_name}>{ticket.created_by_name ?? "—"}</span>
-                  <span className="jira-issue-meta whitespace-nowrap text-[11px]">{formatDateUTC5(ticket.created_at)}</span>
-                  <span className="flex items-center gap-1 flex-wrap"><PriorityBadge priority={ticket.priority || "medium"} />{ticket.book_hotel && <span className="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800">Hotel</span>}</span>
-                  <span><StatusBadge status={ticket.status} label={statusLabels[ticket.status] || ticket.status} /></span>
-                  <span className="jira-issue-meta whitespace-nowrap text-[11px]">{formatDateUTC5(ticket.closed_at)}</span>
+                  <button
+                    type="button"
+                    onClick={() => toggleAccordion(section.key)}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-slate-50 sm:px-5"
+                    aria-expanded={isOpen}
+                    aria-label={isOpen ? t("travel.hideMonthSection") : t("travel.expandMonthSection")}
+                  >
+                    <span className="min-w-0 text-sm font-semibold text-slate-900 sm:text-base">
+                      {heading}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium tabular-nums">
+                        {section.tickets.length}
+                      </span>
+                      <svg
+                        className={`size-5 shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        aria-hidden
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
+                  </button>
+                  {isOpen ? (
+                    <div className="border-t border-slate-100 px-2 pb-4 pt-1 sm:px-4">
+                      {renderTicketsList(section.tickets)}
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
           </div>
         </>
       ) : (
-        <div className="jira-issue-list" style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--jira-border)" }}>
-                <th style={{ padding: "10px 12px", textAlign: "left" }}>Ticket</th>
-                <th style={{ padding: "10px 12px", textAlign: "left" }}>User (Requester)</th>
-                <th style={{ padding: "10px 12px", textAlign: "left" }}>{t("travel.source")} / {t("travel.destination")}</th>
-                <th style={{ padding: "10px 12px", textAlign: "left" }}>Date/Time</th>
-                <th style={{ padding: "10px 12px", textAlign: "left" }}>{t("travel.company")}</th>
-                <th style={{ padding: "10px 12px", textAlign: "left" }}>{t("travel.price")}</th>
-                <th style={{ padding: "10px 12px", textAlign: "left" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stats.map((s) => (
-                <tr key={s.id} style={{ borderBottom: "1px solid var(--jira-border)" }}>
-                  <td style={{ padding: "10px 12px" }}>TRV-{s.travel_ticket_id}</td>
-                  <td style={{ padding: "10px 12px" }}>{s.username || "—"}</td>
-                  <td style={{ padding: "10px 12px" }}>{s.source_destination}</td>
-                  <td style={{ padding: "10px 12px" }}>{s.date_time}</td>
-                  <td style={{ padding: "10px 12px" }}>{s.company}</td>
-                  <td style={{ padding: "10px 12px" }}>{s.price != null ? s.price : "—"}</td>
-                  <td style={{ padding: "10px 12px" }}>
-                    {isTicketEngineer && (
-                      <button 
-                        type="button" 
-                        onClick={() => openEditStatModal(s)} 
-                        className="btn-jira-secondary" 
-                        style={{ padding: "4px 12px", fontSize: 12 }}
-                      >
-                        Edit
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-3">
+          {statsMonthSections.map((section) => {
+            const isOpen =
+              openStatsAccordions[section.key] ?? (section.yearMonth === currentStatsMonthKey);
+            return (
+              <div key={section.key} className="it-list-shell overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => toggleStatsAccordion(section.key)}
+                  className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-slate-50 sm:px-5"
+                  aria-expanded={isOpen}
+                  aria-label={isOpen ? t("travel.hideMonthSection") : t("travel.expandMonthSection")}
+                >
+                  <span className="min-w-0 text-sm font-semibold text-slate-900 sm:text-base">
+                    {formatMonthHeadingUTC5(section.yearMonth, locale)}
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium tabular-nums">
+                      {section.items.length}
+                    </span>
+                    <svg
+                      className={`size-5 shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                      aria-hidden
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </span>
+                </button>
+                {isOpen ? (
+                  <div className="border-t border-slate-100 p-3 sm:p-4">
+                    <div className="jira-issue-list" style={{ overflowX: "auto" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                        <thead>
+                          <tr style={{ borderBottom: "1px solid var(--jira-border)" }}>
+                            <th style={{ padding: "10px 12px", textAlign: "left" }}>Ticket</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left" }}>User (Requester)</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left" }}>{t("travel.source")} / {t("travel.destination")}</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left" }}>Date/Time</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left" }}>{t("travel.company")}</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left" }}>{t("travel.price")}</th>
+                            <th style={{ padding: "10px 12px", textAlign: "left" }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {section.items.map((s) => (
+                            <tr key={s.id} style={{ borderBottom: "1px solid var(--jira-border)" }}>
+                              <td style={{ padding: "10px 12px" }}>TRV-{s.travel_ticket_id}</td>
+                              <td style={{ padding: "10px 12px" }}>{s.username || "—"}</td>
+                              <td style={{ padding: "10px 12px" }}>{s.source_destination}</td>
+                              <td style={{ padding: "10px 12px" }}>{s.date_time}</td>
+                              <td style={{ padding: "10px 12px" }}>{s.company}</td>
+                              <td style={{ padding: "10px 12px" }}>{s.price != null ? `${s.price} ${s.currency || "UZS"}` : "—"}</td>
+                              <td style={{ padding: "10px 12px" }}>
+                                {isTicketEngineer && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openEditStatModal(s)}
+                                    className="btn-jira-secondary"
+                                    style={{ padding: "4px 12px", fontSize: 12 }}
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -569,6 +819,8 @@ export default function TravelPage() {
                         setStatForm({ 
                           travel_ticket_id: detailTicket.id, 
                           username: detailTicket.created_by_name, 
+                          mode: "total",
+                          total: { company: "", price: 0, currency: "UZS" as TravelStatCurrency },
                           segments: segs.map(s => ({
                             source: s.source || "",
                             destination: s.destination || "",
@@ -576,6 +828,7 @@ export default function TravelPage() {
                             time: s.time || "",
                             company: "",
                             price: 0,
+                            currency: "UZS" as TravelStatCurrency,
                           }))
                         }); 
                         setModal("stat");
@@ -744,61 +997,142 @@ export default function TravelPage() {
                   style={{ backgroundColor: "#f4f5f7", cursor: "not-allowed" }}
                 />
               </div>
-              
-              {statForm.segments.map((segment, index) => (
-                <div key={index} style={{ marginBottom: 20, padding: 16, border: "1px solid var(--jira-border)", borderRadius: "var(--jira-radius)", backgroundColor: "#fafbfc" }}>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 12, alignItems: "end" }}>
-                    <div>
-                      <label className="jira-field-label" style={{ fontSize: 11 }}>Source → Destination</label>
-                      <input 
-                        value={`${segment.source} → ${segment.destination}`}
-                        className="jira-input" 
-                        readOnly
-                        style={{ backgroundColor: "#f4f5f7", cursor: "not-allowed", fontSize: 13 }}
-                      />
-                    </div>
-                    <div>
-                      <label className="jira-field-label" style={{ fontSize: 11 }}>Date & Time</label>
-                      <input 
-                        value={`${segment.date}${segment.time ? " " + segment.time : ""}`}
-                        className="jira-input" 
-                        readOnly
-                        style={{ backgroundColor: "#f4f5f7", cursor: "not-allowed", fontSize: 13 }}
-                      />
-                    </div>
+              <div style={{ marginBottom: 16 }}>
+                <label className="jira-field-label">Pricing mode</label>
+                <select
+                  value={statForm.mode}
+                  onChange={(e) => setStatForm((f) => ({ ...f, mode: e.target.value as "total" | "segment" }))}
+                  className="jira-select"
+                >
+                  <option value="total">One total price (recommended)</option>
+                  <option value="segment">Separate price per segment</option>
+                </select>
+              </div>
+
+              {statForm.mode === "total" ? (
+                <div style={{ marginBottom: 20, padding: 16, border: "1px solid var(--jira-border)", borderRadius: "var(--jira-radius)", backgroundColor: "#fafbfc" }}>
+                  <div style={{ marginBottom: 10 }}>
+                    <label className="jira-field-label" style={{ fontSize: 11 }}>Route summary</label>
+                    <input
+                      value={statForm.segments.map((s) => `${s.source} → ${s.destination}`).join(" | ")}
+                      className="jira-input"
+                      readOnly
+                      style={{ backgroundColor: "#f4f5f7", cursor: "not-allowed", fontSize: 13 }}
+                    />
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1fr", gap: 12 }}>
                     <div>
                       <label className="jira-field-label" style={{ fontSize: 11 }}>{t("travel.company")}</label>
-                      <input 
-                        value={segment.company} 
-                        onChange={(e) => {
-                          const newSegments = [...statForm.segments];
-                          newSegments[index].company = e.target.value;
-                          setStatForm((f) => ({ ...f, segments: newSegments }));
-                        }} 
-                        className="jira-input" 
-                        required
+                      <input
+                        value={statForm.total.company}
+                        onChange={(e) => setStatForm((f) => ({ ...f, total: { ...f.total, company: e.target.value } }))}
+                        className="jira-input"
                         style={{ fontSize: 13 }}
                       />
                     </div>
                     <div>
                       <label className="jira-field-label" style={{ fontSize: 11 }}>{t("travel.price")}</label>
-                      <input 
-                        type="number" 
-                        step="0.01" 
-                        value={segment.price || ""} 
-                        onChange={(e) => {
-                          const newSegments = [...statForm.segments];
-                          newSegments[index].price = Number(e.target.value) || 0;
-                          setStatForm((f) => ({ ...f, segments: newSegments }));
-                        }} 
-                        className="jira-input" 
-                        required
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={statForm.total.price || ""}
+                        onChange={(e) => setStatForm((f) => ({ ...f, total: { ...f.total, price: Number(e.target.value) || 0 } }))}
+                        className="jira-input"
                         style={{ fontSize: 13 }}
                       />
                     </div>
+                    <div>
+                      <label className="jira-field-label" style={{ fontSize: 11 }}>Currency</label>
+                      <select
+                        value={statForm.total.currency}
+                        onChange={(e) => setStatForm((f) => ({ ...f, total: { ...f.total, currency: e.target.value as TravelStatCurrency } }))}
+                        className="jira-select"
+                        style={{ fontSize: 13 }}
+                      >
+                        <option value="UZS">UZS</option>
+                        <option value="USD">USD</option>
+                        <option value="CNY">CNY</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
-              ))}
+              ) : (
+                <>
+                  {statForm.segments.map((segment, index) => (
+                    <div key={index} style={{ marginBottom: 20, padding: 16, border: "1px solid var(--jira-border)", borderRadius: "var(--jira-radius)", backgroundColor: "#fafbfc" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, alignItems: "end", marginBottom: 10 }}>
+                        <div>
+                          <label className="jira-field-label" style={{ fontSize: 11 }}>Source → Destination</label>
+                          <input
+                            value={`${segment.source} → ${segment.destination}`}
+                            className="jira-input"
+                            readOnly
+                            style={{ backgroundColor: "#f4f5f7", cursor: "not-allowed", fontSize: 13 }}
+                          />
+                        </div>
+                        <div>
+                          <label className="jira-field-label" style={{ fontSize: 11 }}>Date & Time</label>
+                          <input
+                            value={`${segment.date}${segment.time ? " " + segment.time : ""}`}
+                            className="jira-input"
+                            readOnly
+                            style={{ backgroundColor: "#f4f5f7", cursor: "not-allowed", fontSize: 13 }}
+                          />
+                        </div>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1fr", gap: 12, alignItems: "end" }}>
+                        <div>
+                          <label className="jira-field-label" style={{ fontSize: 11 }}>{t("travel.company")}</label>
+                          <input
+                            value={segment.company}
+                            onChange={(e) => {
+                              const newSegments = [...statForm.segments];
+                              newSegments[index].company = e.target.value;
+                              setStatForm((f) => ({ ...f, segments: newSegments }));
+                            }}
+                            className="jira-input"
+                            style={{ fontSize: 13 }}
+                          />
+                        </div>
+                        <div>
+                          <label className="jira-field-label" style={{ fontSize: 11 }}>{t("travel.price")}</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={segment.price || ""}
+                            onChange={(e) => {
+                              const newSegments = [...statForm.segments];
+                              newSegments[index].price = Number(e.target.value) || 0;
+                              setStatForm((f) => ({ ...f, segments: newSegments }));
+                            }}
+                            className="jira-input"
+                            style={{ fontSize: 13 }}
+                          />
+                        </div>
+                        <div>
+                          <label className="jira-field-label" style={{ fontSize: 11 }}>Currency</label>
+                          <select
+                            value={segment.currency}
+                            onChange={(e) => {
+                              const newSegments = [...statForm.segments];
+                              newSegments[index].currency = e.target.value as TravelStatCurrency;
+                              setStatForm((f) => ({ ...f, segments: newSegments }));
+                            }}
+                            className="jira-select"
+                            style={{ fontSize: 13 }}
+                          >
+                            <option value="UZS">UZS</option>
+                            <option value="USD">USD</option>
+                            <option value="CNY">CNY</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
               
               <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
                 <button type="submit" className="btn-jira-primary">{t("common.save")}</button>
@@ -870,6 +1204,18 @@ export default function TravelPage() {
                   className="jira-input" 
                   required
                 />
+              </div>
+              <div style={{ marginBottom: 16 }}>
+                <label className="jira-field-label">Currency</label>
+                <select
+                  value={editStatForm.currency}
+                  onChange={(e) => setEditStatForm((f) => ({ ...f, currency: e.target.value as TravelStatCurrency }))}
+                  className="jira-select"
+                >
+                  <option value="UZS">UZS</option>
+                  <option value="USD">USD</option>
+                  <option value="CNY">CNY</option>
+                </select>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button type="submit" className="btn-jira-primary">{t("common.save")}</button>

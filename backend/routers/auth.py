@@ -24,6 +24,7 @@ class UserResponse(BaseModel):
     display_name: str | None
     email: str | None
     phone_number: str | None
+    telegram_chat_id: str | None
     department_id: int | None
     roles: list[dict]
     approver_id: int | None
@@ -34,6 +35,7 @@ class UserResponse(BaseModel):
 
 class UserUpdatePhone(BaseModel):
     phone_number: str | None = None
+    telegram_chat_id: str | None = None
 
 
 @router.post("/login")
@@ -118,6 +120,7 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
         display_name=user.display_name,
         email=user.email,
         phone_number=user.phone_number,
+        telegram_chat_id=user.telegram_chat_id,
         department_id=user.department_id,
         roles=roles,
         approver_id=approver_id,
@@ -126,7 +129,8 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
 
 @router.patch("/me")
 def update_me(body: UserUpdatePhone, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Update current user's phone number (saved for next request)."""
+    """Update current user's contact fields."""
     user.phone_number = (body.phone_number or "").strip() or None
+    user.telegram_chat_id = (body.telegram_chat_id or "").strip() or None
     db.commit()
-    return {"ok": True, "phone_number": user.phone_number}
+    return {"ok": True, "phone_number": user.phone_number, "telegram_chat_id": user.telegram_chat_id}

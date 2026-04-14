@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # GeoNames username for travel autocomplete
     geonames_username: str = ""
 
+    # Telegram notifications
+    telegram_bot_token: str = ""
+    telegram_api_base_url: str = "https://api.telegram.org"
+
     class Config:
         env_file = ".env"
         extra = "ignore"

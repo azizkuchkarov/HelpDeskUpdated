@@ -77,7 +77,11 @@
     "colPriority": "Приоритет",
     "colStatus": "Статус",
     "colClosed": "Закрытие",
-    "colAssignee": "Исполнитель"
+    "colAssignee": "Исполнитель",
+    "activeThisMonth": "Активные в этом месяце",
+    "noActiveThisMonth": "Нет открытых заявок за этот месяц. Разверните месяц ниже, чтобы увидеть архив.",
+    "expandMonthSection": "Показать заявки",
+    "hideMonthSection": "Скрыть заявки"
   },
   "administration": {
     "title": "Администрация",
@@ -126,7 +130,12 @@
     "addSegment": "Добавить сегмент",
     "stats": "Статистика",
     "company": "Компания",
-    "price": "Цена"
+    "price": "Цена",
+    "activeThisMonth": "Активные в этом месяце",
+    "noActiveThisMonth": "В этом месяце нет открытых заявок на билеты. Разверните месяц ниже, чтобы увидеть закрытые заявки.",
+    "expandMonthSection": "Показать заявки",
+    "hideMonthSection": "Скрыть заявки",
+    "closedLabel": "Закрытые"
   },
   "topManagers": {
     "title": "Доступность руководства",
@@ -178,6 +187,9 @@
     "wfDeptManagerNote": "Руководитель отдела назначается в разделе «Отделы» (Согласующий по отделу).",
     "wfAddRole": "Добавить",
     "wfLinkSecretary": "Связать секретаря с руководителем",
+    "telegramChatId": "Telegram chat ID",
+    "telegramTest": "Тест",
+    "telegramTestSent": "Тестовое сообщение отправлено",
     "deptManager": "Руководитель отдела (Согласующий)",
     "selectManager": "Выберите руководителя"
   },

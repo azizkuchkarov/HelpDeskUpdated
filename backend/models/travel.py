@@ -33,6 +33,7 @@ class TravelTicketStat(Base):
     date_time = Column(String(255), nullable=True)
     company = Column(String(255), nullable=True)
     price = Column(Numeric(14, 2), nullable=True)
+    currency = Column(String(10), nullable=False, default="UZS")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     travel_ticket = relationship("TravelTicket", backref="stats")

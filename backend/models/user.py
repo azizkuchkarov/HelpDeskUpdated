@@ -30,6 +30,7 @@ class User(Base):
     display_name = Column(String(255), nullable=True)
     email = Column(String(255), nullable=True)
     phone_number = Column(String(50), nullable=True)
+    telegram_chat_id = Column(String(64), nullable=True)
     department_id = Column(Integer, ForeignKey("departments.id"), nullable=True)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

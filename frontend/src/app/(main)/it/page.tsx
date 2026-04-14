@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useLocale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { it as itApi, type ITTicketComment, type FileAttachment } from "@/lib/api";
-import { formatDateUTC5 } from "@/lib/dateUtils";
+import {
+  formatDateUTC5,
+  getYearMonthKeyUTC5,
+  getCurrentYearMonthKeyUTC5,
+  formatMonthHeadingUTC5,
+} from "@/lib/dateUtils";
 import PriorityBadge from "@/components/jira/PriorityBadge";
 import StatusBadge from "@/components/jira/StatusBadge";
 
@@ -25,6 +30,13 @@ type Ticket = {
   closed_at: string | null;
   auto_closed_by_system?: boolean;
   confirmed_by_user_at?: string | null;
+};
+
+type ItMonthSection = {
+  key: string;
+  yearMonth: string;
+  variant: "currentClosed" | "archive";
+  tickets: Ticket[];
 };
 
 const PROBLEM_TYPES = [
@@ -90,6 +102,7 @@ export default function ITTicketsPage() {
   const [filesLoading, setFilesLoading] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
   const [newTicketError, setNewTicketError] = useState<string | null>(null);
+  const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({});
 
   const isAdmin =
     user?.roles?.some((r) => r.role_type === "it_admin") ?? false;
@@ -337,6 +350,180 @@ export default function ITTicketsPage() {
     return "hover:bg-slate-50";
   }
 
+  const { currentMonthKey, currentMonthOpen, monthSections } = useMemo(() => {
+    const byMonth = new Map<string, Ticket[]>();
+    for (const t of tickets) {
+      const k = getYearMonthKeyUTC5(t.created_at);
+      if (!k) continue;
+      if (!byMonth.has(k)) byMonth.set(k, []);
+      byMonth.get(k)!.push(t);
+    }
+    const sortDesc = (a: Ticket, b: Ticket) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    const currentKey = getCurrentYearMonthKeyUTC5();
+    const currentOpen = (byMonth.get(currentKey) ?? [])
+      .filter((x) => x.status !== "closed")
+      .sort(sortDesc);
+    const sortedKeys = Array.from(byMonth.keys()).sort((a, b) => b.localeCompare(a));
+    const sections: ItMonthSection[] = [];
+    for (const mk of sortedKeys) {
+      const raw = byMonth.get(mk) ?? [];
+      const sorted = [...raw].sort(sortDesc);
+      if (mk === currentKey) {
+        const closedOnly = sorted.filter((t) => t.status === "closed");
+        if (closedOnly.length) {
+          sections.push({
+            key: `${mk}-closed`,
+            yearMonth: mk,
+            variant: "currentClosed",
+            tickets: closedOnly,
+          });
+        }
+      } else if (sorted.length) {
+        sections.push({
+          key: `m-${mk}`,
+          yearMonth: mk,
+          variant: "archive",
+          tickets: sorted,
+        });
+      }
+    }
+    return {
+      currentMonthKey: currentKey,
+      currentMonthOpen: currentOpen,
+      monthSections: sections,
+    };
+  }, [tickets]);
+
+  const toggleAccordion = useCallback((key: string) => {
+    setOpenAccordions((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
+  const renderTicketList = (list: Ticket[]) => (
+    <>
+      <div className="ticket-cards">
+        {list.map((ticket) => (
+          <button
+            key={ticket.id}
+            type="button"
+            onClick={() => setDetailId(ticket.id)}
+            className={
+              "ticket-card w-full text-left shadow-sm transition-shadow hover:shadow-md " +
+              (itTicketCardAccent(ticket.status) || "border-slate-200/90")
+            }
+          >
+            <div className="ticket-card-header">
+              <span className="ticket-card-key">IT-{ticket.id}</span>
+              <span className="text-xs text-slate-500">
+                {formatDateUTC5(ticket.created_at)}
+              </span>
+            </div>
+            <p className="ticket-card-title" title={ticket.title}>
+              {ticket.title}
+            </p>
+            <div className="ticket-card-meta">
+              <span>{ticket.created_by_name ?? "—"}</span>
+              {ticket.closed_at && (
+                <span>Closed {formatDateUTC5(ticket.closed_at)}</span>
+              )}
+              <span>{ticket.assigned_engineer_name ?? "Unassigned"}</span>
+            </div>
+            <div className="ticket-card-badges">
+              <PriorityBadge priority={ticket.priority || "medium"} />
+              <StatusBadge status={ticket.status} label={statusLabel[ticket.status]} />
+            </div>
+          </button>
+        ))}
+      </div>
+      <div className="ticket-table-wrap rounded-2xl shadow-[0_8px_30px_-12px_rgb(15_23_42_/_.12)] ring-1 ring-slate-900/[0.06]">
+        <table className="w-full min-w-[900px] text-left text-sm">
+          <thead>
+            <tr className="border-b border-slate-200/90 bg-gradient-to-b from-slate-50 to-slate-50/70 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+              <th className="min-w-[88px] px-4 py-3.5 sm:px-5">{t("it.colKey")}</th>
+              <th className="px-4 py-3.5 sm:px-5">{t("it.colSummary")}</th>
+              <th className="px-4 py-3.5 sm:px-5">{t("it.colRequester")}</th>
+              <th className="whitespace-nowrap px-4 py-3.5 sm:px-5">{t("it.colTime")}</th>
+              <th className="px-4 py-3.5 sm:px-5">{t("it.colPriority")}</th>
+              <th className="px-4 py-3.5 sm:px-5">{t("it.colStatus")}</th>
+              <th className="whitespace-nowrap px-4 py-3.5 sm:px-5">{t("it.colClosed")}</th>
+              <th className="min-w-[180px] px-4 py-3.5 sm:px-5">{t("it.colAssignee")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {list.map((ticket) => (
+              <tr
+                key={ticket.id}
+                onClick={() => setDetailId(ticket.id)}
+                className={
+                  "cursor-pointer border-b border-slate-100/90 transition-colors duration-150 last:border-0 " +
+                  itTicketRowClass(ticket.status)
+                }
+              >
+                <td className="min-w-[88px] whitespace-nowrap px-4 py-3.5 font-mono text-xs font-semibold text-primary-700 sm:px-5">
+                  IT-{ticket.id}
+                </td>
+                <td
+                  className="max-w-[200px] truncate px-4 py-3.5 font-medium text-slate-900 sm:px-5"
+                  title={ticket.title}
+                >
+                  {ticket.title}
+                </td>
+                <td
+                  className="max-w-[120px] truncate px-4 py-3.5 text-slate-600 sm:px-5"
+                  title={ticket.created_by_name}
+                >
+                  {ticket.created_by_name ?? "—"}
+                </td>
+                <td className="whitespace-nowrap px-4 py-3.5 text-xs text-slate-500 sm:px-5">
+                  {formatDateUTC5(ticket.created_at)}
+                </td>
+                <td className="px-4 py-3.5 sm:px-5">
+                  <PriorityBadge priority={ticket.priority || "medium"} />
+                </td>
+                <td className="px-4 py-3.5 sm:px-5">
+                  <StatusBadge status={ticket.status} label={statusLabel[ticket.status]} />
+                </td>
+                <td className="whitespace-nowrap px-4 py-3.5 text-xs text-slate-500 sm:px-5">
+                  {formatDateUTC5(ticket.closed_at)}
+                </td>
+                <td
+                  className="min-w-[180px] px-4 py-3.5 sm:px-5"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="min-w-0 truncate text-slate-500">
+                      {ticket.assigned_engineer_name ?? "—"}
+                    </span>
+                    {isAdmin && ticket.status === "open" && (
+                      <button
+                        type="button"
+                        onClick={(e) => openAssignModal(ticket.id, e)}
+                        className={`${btnSecondary} min-h-touch shrink-0 px-3 py-1.5 text-xs`}
+                      >
+                        {t("it.assign")}
+                      </button>
+                    )}
+                    {isReassignEngineer &&
+                      statusAllowsReassign(ticket.status) &&
+                      ticket.assigned_engineer_id != null && (
+                        <button
+                          type="button"
+                          onClick={(e) => openReassignModal(ticket.id, e)}
+                          className={`${btnSecondary} min-h-touch shrink-0 px-3 py-1.5 text-xs`}
+                        >
+                          {t("it.reassignEngineer")}
+                        </button>
+                      )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+
   return (
     <div className="page-container it-workspace">
       <header className="it-hero">
@@ -435,116 +622,72 @@ export default function ITTicketsPage() {
         </div>
       ) : (
         <>
-          {/* Mobile: card list */}
-          <div className="ticket-cards">
-            {tickets.map((ticket) => (
-              <button
-                key={ticket.id}
-                type="button"
-                onClick={() => setDetailId(ticket.id)}
-                className={
-                  "ticket-card w-full text-left shadow-sm transition-shadow hover:shadow-md " +
-                  (itTicketCardAccent(ticket.status) || "border-slate-200/90")
-                }
-              >
-                <div className="ticket-card-header">
-                  <span className="ticket-card-key">IT-{ticket.id}</span>
-                  <span className="text-xs text-slate-500">
-                    {formatDateUTC5(ticket.created_at)}
-                  </span>
-                </div>
-                <p className="ticket-card-title" title={ticket.title}>{ticket.title}</p>
-                <div className="ticket-card-meta">
-                  <span>{ticket.created_by_name ?? "—"}</span>
-                  {ticket.closed_at && (
-                    <span>Closed {formatDateUTC5(ticket.closed_at)}</span>
-                  )}
-                  <span>{ticket.assigned_engineer_name ?? "Unassigned"}</span>
-                </div>
-                <div className="ticket-card-badges">
-                  <PriorityBadge priority={ticket.priority || "medium"} />
-                  <StatusBadge status={ticket.status} label={statusLabel[ticket.status]} />
-                </div>
-              </button>
-            ))}
-          </div>
-          {/* Desktop: table with horizontal scroll */}
-          <div className="ticket-table-wrap rounded-2xl shadow-[0_8px_30px_-12px_rgb(15_23_42_/_.12)] ring-1 ring-slate-900/[0.06]">
-            <table className="w-full min-w-[900px] text-left text-sm">
-              <thead>
-                <tr className="border-b border-slate-200/90 bg-gradient-to-b from-slate-50 to-slate-50/70 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                  <th className="min-w-[88px] px-4 py-3.5 sm:px-5">{t("it.colKey")}</th>
-                  <th className="px-4 py-3.5 sm:px-5">{t("it.colSummary")}</th>
-                  <th className="px-4 py-3.5 sm:px-5">{t("it.colRequester")}</th>
-                  <th className="whitespace-nowrap px-4 py-3.5 sm:px-5">{t("it.colTime")}</th>
-                  <th className="px-4 py-3.5 sm:px-5">{t("it.colPriority")}</th>
-                  <th className="px-4 py-3.5 sm:px-5">{t("it.colStatus")}</th>
-                  <th className="whitespace-nowrap px-4 py-3.5 sm:px-5">{t("it.colClosed")}</th>
-                  <th className="min-w-[180px] px-4 py-3.5 sm:px-5">{t("it.colAssignee")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tickets.map((ticket) => (
-                  <tr
-                    key={ticket.id}
-                    onClick={() => setDetailId(ticket.id)}
-                    className={
-                      "cursor-pointer border-b border-slate-100/90 transition-colors duration-150 last:border-0 " +
-                      itTicketRowClass(ticket.status)
-                    }
+          <div className="space-y-4">
+            <section className="it-list-shell overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-[0_1px_3px_rgb(0_0_0_/_.05),0_8px_24px_-6px_rgb(15_23_42_/_.1)]">
+              <div className="border-b border-slate-200/80 bg-gradient-to-r from-slate-50/90 to-white px-4 py-3 sm:px-5">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500">
+                  {t("it.activeThisMonth")}
+                </h2>
+                <p className="mt-1 text-xs text-slate-600 sm:text-sm">
+                  {currentMonthKey ? formatMonthHeadingUTC5(currentMonthKey, locale) : ""}
+                </p>
+              </div>
+              <div className="p-3 sm:p-4">
+                {currentMonthOpen.length === 0 ? (
+                  <p className="py-6 text-center text-sm leading-relaxed text-slate-500">
+                    {t("it.noActiveThisMonth")}
+                  </p>
+                ) : (
+                  renderTicketList(currentMonthOpen)
+                )}
+              </div>
+            </section>
+
+            {monthSections.map((section) => {
+              const isOpen = !!openAccordions[section.key];
+              const heading =
+                section.variant === "currentClosed"
+                  ? `${formatMonthHeadingUTC5(section.yearMonth, locale)} — ${t("it.closed")}`
+                  : formatMonthHeadingUTC5(section.yearMonth, locale);
+              return (
+                <div
+                  key={section.key}
+                  className="it-list-shell overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm"
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleAccordion(section.key)}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3.5 text-left transition hover:bg-slate-50 sm:px-5"
+                    aria-expanded={isOpen}
+                    aria-label={isOpen ? t("it.hideMonthSection") : t("it.expandMonthSection")}
                   >
-                    <td className="min-w-[88px] whitespace-nowrap px-4 py-3.5 font-mono text-xs font-semibold text-primary-700 sm:px-5">
-                      IT-{ticket.id}
-                    </td>
-                    <td className="max-w-[200px] truncate px-4 py-3.5 font-medium text-slate-900 sm:px-5" title={ticket.title}>
-                      {ticket.title}
-                    </td>
-                    <td className="max-w-[120px] truncate px-4 py-3.5 text-slate-600 sm:px-5" title={ticket.created_by_name}>
-                      {ticket.created_by_name ?? "—"}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3.5 text-xs text-slate-500 sm:px-5">
-                      {formatDateUTC5(ticket.created_at)}
-                    </td>
-                    <td className="px-4 py-3.5 sm:px-5">
-                      <PriorityBadge priority={ticket.priority || "medium"} />
-                    </td>
-                    <td className="px-4 py-3.5 sm:px-5">
-                      <StatusBadge status={ticket.status} label={statusLabel[ticket.status]} />
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3.5 text-xs text-slate-500 sm:px-5">
-                      {formatDateUTC5(ticket.closed_at)}
-                    </td>
-                    <td className="min-w-[180px] px-4 py-3.5 sm:px-5" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-slate-500 min-w-0 truncate">
-                          {ticket.assigned_engineer_name ?? "—"}
-                        </span>
-                        {isAdmin && ticket.status === "open" && (
-                          <button
-                            type="button"
-                            onClick={(e) => openAssignModal(ticket.id, e)}
-                            className={`${btnSecondary} shrink-0 px-3 py-1.5 text-xs min-h-touch`}
-                          >
-                            {t("it.assign")}
-                          </button>
-                        )}
-                        {isReassignEngineer &&
-                          statusAllowsReassign(ticket.status) &&
-                          ticket.assigned_engineer_id != null && (
-                            <button
-                              type="button"
-                              onClick={(e) => openReassignModal(ticket.id, e)}
-                              className={`${btnSecondary} shrink-0 px-3 py-1.5 text-xs min-h-touch`}
-                            >
-                              {t("it.reassignEngineer")}
-                            </button>
-                          )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    <span className="min-w-0 text-sm font-semibold text-slate-900 sm:text-base">
+                      {heading}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2 text-xs text-slate-500">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium tabular-nums">
+                        {section.tickets.length}
+                      </span>
+                      <svg
+                        className={`size-5 shrink-0 text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        aria-hidden
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </span>
+                  </button>
+                  {isOpen ? (
+                    <div className="border-t border-slate-100 px-2 pb-4 pt-1 sm:px-4">
+                      {renderTicketList(section.tickets)}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
         </>
       )}

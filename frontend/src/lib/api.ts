@@ -5,6 +5,7 @@ export type AdminUser = {
   ldap_username: string;
   display_name: string;
   email: string;
+  telegram_chat_id?: string | null;
   department_id: number | null;
   roles: { role_type: string; section: string | null }[];
   approver_id: number | null;
@@ -117,6 +118,13 @@ export const admin = {
   users: () => api<AdminUser[]>("/admin/users"),
   setUserDepartment: (userId: number, departmentId: number | null) =>
     api("/admin/users/set-department", { method: "POST", body: JSON.stringify({ user_id: userId, department_id: departmentId }) }),
+  setUserTelegramChatId: (userId: number, telegramChatId: string | null) =>
+    api("/admin/users/set-telegram-chat-id", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, telegram_chat_id: telegramChatId ?? null }),
+    }),
+  testUserTelegram: (userId: number) =>
+    api("/admin/users/" + userId + "/test-telegram", { method: "POST" }),
   setUserApprover: (userId: number, approverId: number, departmentId?: number) =>
     api("/admin/users/set-approver", { method: "POST", body: JSON.stringify({ user_id: userId, approver_id: approverId, department_id: departmentId ?? null }) }),
   setUserRole: (userId: number, roleType: string, section?: string) =>
@@ -349,7 +357,16 @@ export const transport = {
     downloadFileApi("/transport/tickets/" + ticketId + "/files/" + fileId + "/file", fileName),
 };
 
-export type TravelStatBody = { travel_ticket_id?: number; username?: string; source_destination?: string; date_time?: string; company?: string; price?: number };
+export type TravelStatCurrency = "UZS" | "USD" | "CNY";
+export type TravelStatBody = {
+  travel_ticket_id?: number;
+  username?: string;
+  source_destination?: string;
+  date_time?: string;
+  company?: string;
+  price?: number;
+  currency?: TravelStatCurrency;
+};
 
 export type TravelTicket = {
   id: number;
@@ -372,6 +389,7 @@ export type TravelStat = {
   date_time: string;
   company: string;
   price: number | null;
+  currency: TravelStatCurrency;
   created_at: string;
 };
 
@@ -395,7 +413,8 @@ export const travel = {
   reject: (ticketId: number) => api("/travel/tickets/" + ticketId + "/reject", { method: "POST" }),
   stats: () => api<TravelStat[]>("/travel/stats"),
   createStat: (body: TravelStatBody) => api("/travel/stats", { method: "POST", body: JSON.stringify(body) }),
-  updateStat: (statId: number, body: { company: string; price: number }) => api("/travel/stats/" + statId, { method: "PATCH", body: JSON.stringify(body) }),
+  updateStat: (statId: number, body: { company: string; price: number; currency: TravelStatCurrency }) =>
+    api("/travel/stats/" + statId, { method: "PATCH", body: JSON.stringify(body) }),
   uploadFile: (ticketId: number, file: File) => uploadFileApi<FileAttachment>("/travel/tickets/" + ticketId + "/files", file),
   listFiles: (ticketId: number) => api<FileAttachment[]>("/travel/tickets/" + ticketId + "/files"),
   getFileDownloadUrl: (ticketId: number, fileId: number) => api<{ download_url: string }>("/travel/tickets/" + ticketId + "/files/" + fileId + "/download"),

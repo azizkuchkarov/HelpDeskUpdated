@@ -13,6 +13,7 @@ from models.transport import TransportTicket, TransportTicketType, Car, Driver
 from models.file_attachment import FileAttachment
 from models.ticket_comment import TicketComment
 from services.minio_service import upload_file, get_presigned_url, stream_object, content_disposition_for_filename
+from services.telegram_service import notify_transport_new_ticket
 
 router = APIRouter()
 
@@ -212,6 +213,15 @@ def create_ticket(d: TransportTicketCreate, db: Session = Depends(get_db), user:
     db.add(ticket)
     db.commit()
     db.refresh(ticket)
+    created_by_name = ticket.created_by.display_name or ticket.created_by.ldap_username
+    notify_transport_new_ticket(
+        db=db,
+        ticket_id=ticket.id,
+        ticket_type=str(ticket.ticket_type),
+        destination=ticket.destination,
+        priority=ticket.priority or "medium",
+        created_by_name=created_by_name,
+    )
     return {"id": ticket.id, "status": "open", "message": "Ticket created"}
 
 
