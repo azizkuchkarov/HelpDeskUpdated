@@ -13,7 +13,7 @@ class TranslatorTicket(Base):
     description = Column(Text, nullable=True)
     source_language = Column(String(50), nullable=False)  # UZ, RU, ENG, Chinese
     target_language = Column(String(50), nullable=False)  # RU, ENG, Chinese
-    status = Column(String(50), default="open")  # open, assigned, in_translation, in_checkin, closed
+    status = Column(String(50), default="open")  # open, assigned, in_translation, in_checkin, in_admin_review, closed
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     assigned_translator_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     assigned_checkin_id = Column(Integer, ForeignKey("users.id"), nullable=True)
@@ -22,6 +22,8 @@ class TranslatorTicket(Base):
     closed_at = Column(DateTime, nullable=True)
     translator_started_at = Column(DateTime, nullable=True)
     translator_submitted_at = Column(DateTime, nullable=True)  # when translator submitted to check-in
+    checkin_completed_at = Column(DateTime, nullable=True)  # when check-in engineer sent to admin review
+    admin_approved_at = Column(DateTime, nullable=True)  # when translator admin finalized approval
     confirmed_by_user_at = Column(DateTime, nullable=True)
 
     created_by = relationship("User", foreign_keys=[created_by_id])

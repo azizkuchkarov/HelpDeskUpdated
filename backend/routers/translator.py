@@ -12,11 +12,61 @@ from models.translator import TranslatorTicket
 from models.file_attachment import FileAttachment
 from models.ticket_comment import TicketComment
 from services.minio_service import upload_file, get_presigned_url, stream_object, content_disposition_for_filename
+from services.telegram_service import (
+    notify_translator_new_ticket,
+    notify_translator_assigned_to_engineers,
+    notify_translator_ready_for_checkin,
+)
 
 router = APIRouter()
 
 SOURCE_LANGUAGES = ["UZ", "RU", "ENG", "CHN"]
 TARGET_LANGUAGES = ["UZ", "RU", "ENG", "CHN"]
+
+
+def _is_internal_user_for_ticket(ticket: TranslatorTicket, user: User, db: Session) -> bool:
+    return (
+        _is_translator_admin(user, db)
+        or ticket.assigned_translator_id == user.id
+        or ticket.assigned_checkin_id == user.id
+    )
+
+
+def _final_translated_category(db: Session, ticket_id: int) -> str | None:
+    """Pick which translated files are considered 'final' for the requester."""
+    # Priority: admin > checkin > translator > legacy translated
+    cats = ["admin", "checkin", "translator", "translated"]
+    for c in cats:
+        exists = (
+            db.query(FileAttachment.id)
+            .filter(
+                FileAttachment.ticket_type == "translator",
+                FileAttachment.ticket_id == ticket_id,
+                FileAttachment.file_category == c,
+            )
+            .first()
+        )
+        if exists:
+            return c
+    return None
+
+
+def _latest_final_translated_attachment_id(db: Session, ticket_id: int) -> int | None:
+    """Return the single final translated attachment id visible to requester."""
+    final_cat = _final_translated_category(db, ticket_id)
+    if not final_cat:
+        return None
+    row = (
+        db.query(FileAttachment.id)
+        .filter(
+            FileAttachment.ticket_type == "translator",
+            FileAttachment.ticket_id == ticket_id,
+            FileAttachment.file_category == final_cat,
+        )
+        .order_by(FileAttachment.created_at.desc(), FileAttachment.id.desc())
+        .first()
+    )
+    return row[0] if row else None
 
 
 def _is_translator_admin(user: User, db: Session) -> bool:
@@ -43,11 +93,18 @@ def _is_checkin_engineer(user: User, db: Session) -> bool:
 def _can_access_ticket(ticket: TranslatorTicket, user: User, db: Session) -> bool:
     if _is_translator_admin(user, db):
         return True
-    if _is_translator_engineer(user, db):
-        return ticket.assigned_translator_id == user.id or ticket.status == "open"
-    if _is_checkin_engineer(user, db):
-        return ticket.assigned_checkin_id == user.id or ticket.status == "open"
-    return ticket.created_by_id == user.id
+    # Own request (requester) — before engineer roles: user may have translator + check-in roles too
+    if ticket.created_by_id == user.id:
+        return True
+    if _is_translator_engineer(user, db) and (
+        ticket.assigned_translator_id == user.id or ticket.status == "open"
+    ):
+        return True
+    if _is_checkin_engineer(user, db) and (
+        ticket.assigned_checkin_id == user.id or ticket.status == "open"
+    ):
+        return True
+    return False
 
 
 class TranslatorTicketCreate(BaseModel):
@@ -76,10 +133,13 @@ def list_tickets(
     is_admin = _is_translator_admin(user, db)
     is_trans = _is_translator_engineer(user, db)
     is_checkin = _is_checkin_engineer(user, db)
-    if not is_admin and not is_trans and not is_checkin:
+    # Admin sees all tickets — must run before engineer branch (admins may also have translator/check-in roles)
+    if is_admin:
+        pass
+    elif not is_trans and not is_checkin:
         q = q.filter(TranslatorTicket.created_by_id == user.id)
     elif is_trans or is_checkin:
-        # Translator and/or Check-in Engineer: see tickets assigned to them OR open
+        # Translator and/or Check-in Engineer: assigned to them OR still open (unassigned queue)
         from sqlalchemy import or_
         q = q.filter(
             or_(
@@ -109,6 +169,8 @@ def list_tickets(
             "closed_at": t.closed_at.isoformat() if t.closed_at else None,
             "translator_started_at": t.translator_started_at.isoformat() if t.translator_started_at else None,
             "translator_submitted_at": t.translator_submitted_at.isoformat() if t.translator_submitted_at else None,
+            "checkin_completed_at": t.checkin_completed_at.isoformat() if getattr(t, "checkin_completed_at", None) else None,
+            "admin_approved_at": t.admin_approved_at.isoformat() if getattr(t, "admin_approved_at", None) else None,
             "confirmed_by_user_at": t.confirmed_by_user_at.isoformat() if t.confirmed_by_user_at else None,
         }
         for t in tickets
@@ -143,6 +205,8 @@ def get_ticket(
         "closed_at": ticket.closed_at.isoformat() if ticket.closed_at else None,
         "translator_started_at": ticket.translator_started_at.isoformat() if ticket.translator_started_at else None,
         "translator_submitted_at": ticket.translator_submitted_at.isoformat() if ticket.translator_submitted_at else None,
+        "checkin_completed_at": ticket.checkin_completed_at.isoformat() if getattr(ticket, "checkin_completed_at", None) else None,
+        "admin_approved_at": ticket.admin_approved_at.isoformat() if getattr(ticket, "admin_approved_at", None) else None,
         "confirmed_by_user_at": ticket.confirmed_by_user_at.isoformat() if ticket.confirmed_by_user_at else None,
     }
 
@@ -166,6 +230,15 @@ async def create_ticket(
     db.add(ticket)
     db.commit()
     db.refresh(ticket)
+    created_name = user.display_name or user.ldap_username
+    notify_translator_new_ticket(
+        db,
+        ticket.id,
+        ticket.title,
+        ticket.source_language,
+        ticket.target_language,
+        created_name,
+    )
     return {"id": ticket.id, "status": "open", "message": "Ticket created"}
 
 
@@ -201,6 +274,17 @@ def assign_ticket(
     ticket.assigned_checkin_id = d.checkin_id
     ticket.status = "assigned"
     db.commit()
+    translator_u = db.query(User).get(d.translator_id)
+    checkin_u = db.query(User).get(d.checkin_id)
+    if translator_u and checkin_u:
+        notify_translator_assigned_to_engineers(
+            ticket.id,
+            ticket.title,
+            ticket.source_language,
+            ticket.target_language,
+            translator_u,
+            checkin_u,
+        )
     return {"ok": True, "status": "assigned"}
 
 
@@ -319,10 +403,12 @@ async def upload_translated(
     ticket = db.query(TranslatorTicket).get(ticket_id)
     if not ticket:
         raise HTTPException(404, "Ticket not found")
-    if ticket.assigned_translator_id != user.id:
-        raise HTTPException(403, "Not assigned to you")
-    if ticket.status not in ("assigned", "in_translation"):
-        raise HTTPException(400, "Cannot upload translated file in current status")
+    is_admin = _is_translator_admin(user, db)
+    can_translator_upload = ticket.assigned_translator_id == user.id and ticket.status in ("assigned", "in_translation")
+    can_checkin_upload = ticket.assigned_checkin_id == user.id and ticket.status == "in_checkin"
+    can_admin_upload = is_admin and ticket.status == "in_admin_review"
+    if not (can_translator_upload or can_checkin_upload or can_admin_upload):
+        raise HTTPException(403, "You cannot upload translated files for this ticket in current status")
     file_data = await file.read()
     if len(file_data) == 0:
         raise HTTPException(400, "File is empty")
@@ -334,6 +420,13 @@ async def upload_translated(
         )
     except Exception as e:
         raise HTTPException(500, f"Failed to upload file: {str(e)}")
+    if can_admin_upload:
+        category = "admin"
+    elif can_checkin_upload:
+        category = "checkin"
+    else:
+        category = "translator"
+
     attachment = FileAttachment(
         ticket_type="translator",
         ticket_id=ticket_id,
@@ -342,7 +435,7 @@ async def upload_translated(
         file_size=len(file_data),
         content_type=file.content_type,
         uploaded_by_id=user.id,
-        file_category="translated",
+        file_category=category,
     )
     db.add(attachment)
     db.commit()
@@ -367,13 +460,17 @@ def submit_to_checkin(
     has_translated = db.query(FileAttachment).filter(
         FileAttachment.ticket_type == "translator",
         FileAttachment.ticket_id == ticket_id,
-        FileAttachment.file_category == "translated",
+        FileAttachment.file_category.in_(["translator", "translated"]),
     ).first()
     if not has_translated:
         raise HTTPException(400, "Upload at least one translated file before submitting")
     ticket.status = "in_checkin"
     ticket.translator_submitted_at = datetime.utcnow()
     db.commit()
+    if ticket.assigned_checkin_id:
+        checkin_u = db.query(User).get(ticket.assigned_checkin_id)
+        if checkin_u:
+            notify_translator_ready_for_checkin(ticket.id, ticket.title, checkin_u)
     return {"ok": True, "status": "in_checkin"}
 
 
@@ -383,7 +480,7 @@ def checkin_approve(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Check-in Engineer: approve translation, user gets final files."""
+    """Check-in Engineer: finish own review and send to Translator Admin for final approval."""
     ticket = db.query(TranslatorTicket).get(ticket_id)
     if not ticket:
         raise HTTPException(404, "Ticket not found")
@@ -391,10 +488,10 @@ def checkin_approve(
         raise HTTPException(403, "Not assigned to you")
     if ticket.status != "in_checkin":
         raise HTTPException(400, "Ticket must be in check-in phase")
-    ticket.status = "closed"
-    ticket.closed_at = datetime.utcnow()
+    ticket.status = "in_admin_review"
+    ticket.checkin_completed_at = datetime.utcnow()
     db.commit()
-    return {"ok": True, "status": "closed"}
+    return {"ok": True, "status": "in_admin_review"}
 
 
 @router.post("/tickets/{ticket_id}/checkin-reject")
@@ -414,6 +511,27 @@ def checkin_reject(
     ticket.status = "in_translation"
     db.commit()
     return {"ok": True, "status": "in_translation"}
+
+
+@router.post("/tickets/{ticket_id}/admin-approve")
+def admin_approve(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Translator Admin: final approval after check-in review."""
+    if not _is_translator_admin(user, db):
+        raise HTTPException(403, "Translator Admin only")
+    ticket = db.query(TranslatorTicket).get(ticket_id)
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+    if ticket.status != "in_admin_review":
+        raise HTTPException(400, "Ticket must be in admin review phase")
+    ticket.status = "closed"
+    ticket.closed_at = datetime.utcnow()
+    ticket.admin_approved_at = ticket.closed_at
+    db.commit()
+    return {"ok": True, "status": "closed"}
 
 
 @router.post("/tickets/{ticket_id}/start-translation")
@@ -469,12 +587,32 @@ def list_ticket_files(
         raise HTTPException(404, "Ticket not found")
     if not _can_access_ticket(ticket, user, db):
         raise HTTPException(403, "Access denied")
+
+    is_admin = _is_translator_admin(user, db)
+    is_internal = _is_internal_user_for_ticket(ticket, user, db)
+    is_requester_only = (ticket.created_by_id == user.id) and not is_internal and not is_admin
+
     q = db.query(FileAttachment).filter(
         FileAttachment.ticket_type == "translator",
         FileAttachment.ticket_id == ticket_id,
     )
     if category:
         q = q.filter(FileAttachment.file_category == category)
+
+    # Requester-only view:
+    # - before CLOSED: only originals
+    # - after CLOSED: originals + final translated (admin/checkin/translator fallback)
+    if is_requester_only:
+        if ticket.status != "closed":
+            q = q.filter(FileAttachment.file_category == "original")
+        else:
+            final_id = _latest_final_translated_attachment_id(db, ticket_id)
+            from sqlalchemy import or_
+            if final_id:
+                q = q.filter(or_(FileAttachment.file_category == "original", FileAttachment.id == final_id))
+            else:
+                q = q.filter(FileAttachment.file_category == "original")
+
     attachments = q.order_by(FileAttachment.created_at.desc()).all()
     return [
         {
@@ -509,8 +647,17 @@ def download_file(
     ).first()
     if not attachment:
         raise HTTPException(404, "File not found")
-    if ticket.status != "closed" and getattr(attachment, "file_category", None) == "translated" and ticket.created_by_id == user.id:
-        raise HTTPException(403, "Final files available only after check-in approval")
+    is_admin = _is_translator_admin(user, db)
+    is_internal = _is_internal_user_for_ticket(ticket, user, db)
+    is_requester_only = (ticket.created_by_id == user.id) and not is_internal and not is_admin
+    cat = getattr(attachment, "file_category", None)
+    if is_requester_only:
+        if cat != "original" and ticket.status != "closed":
+            raise HTTPException(403, "Final files available only after admin approval")
+        if cat != "original" and ticket.status == "closed":
+            final_id = _latest_final_translated_attachment_id(db, ticket_id)
+            if final_id and attachment.id != final_id:
+                raise HTTPException(403, "Only final translated files are available")
     try:
         download_url = get_presigned_url(attachment.file_path, expires_seconds=3600)
         return {"download_url": download_url}
@@ -537,8 +684,17 @@ def stream_ticket_file(
     ).first()
     if not attachment:
         raise HTTPException(404, "File not found")
-    if ticket.status != "closed" and getattr(attachment, "file_category", None) == "translated" and ticket.created_by_id == user.id:
-        raise HTTPException(403, "Final files available only after check-in approval")
+    is_admin = _is_translator_admin(user, db)
+    is_internal = _is_internal_user_for_ticket(ticket, user, db)
+    is_requester_only = (ticket.created_by_id == user.id) and not is_internal and not is_admin
+    cat = getattr(attachment, "file_category", None)
+    if is_requester_only:
+        if cat != "original" and ticket.status != "closed":
+            raise HTTPException(403, "Final files available only after admin approval")
+        if cat != "original" and ticket.status == "closed":
+            final_id = _latest_final_translated_attachment_id(db, ticket_id)
+            if final_id and attachment.id != final_id:
+                raise HTTPException(403, "Only final translated files are available")
     try:
         return StreamingResponse(
             stream_object(attachment.file_path),

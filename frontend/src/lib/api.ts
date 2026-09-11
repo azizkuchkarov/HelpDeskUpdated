@@ -441,6 +441,8 @@ export type TranslatorTicket = {
   closed_at: string | null;
   translator_started_at: string | null;
   translator_submitted_at: string | null;
+  checkin_completed_at: string | null;
+  admin_approved_at: string | null;
   confirmed_by_user_at: string | null;
 };
 
@@ -491,6 +493,8 @@ export const translator = {
     api("/translator/tickets/" + ticketId + "/checkin-approve", { method: "POST" }),
   checkinReject: (ticketId: number) =>
     api("/translator/tickets/" + ticketId + "/checkin-reject", { method: "POST" }),
+  adminApprove: (ticketId: number) =>
+    api("/translator/tickets/" + ticketId + "/admin-approve", { method: "POST" }),
   confirmByUser: (ticketId: number) =>
     api("/translator/tickets/" + ticketId + "/confirm-by-user", { method: "POST" }),
 };

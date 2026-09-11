@@ -102,6 +102,7 @@ export default function ITTicketsPage() {
   const [filesLoading, setFilesLoading] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
   const [newTicketError, setNewTicketError] = useState<string | null>(null);
+  const [newTicketSubmitting, setNewTicketSubmitting] = useState(false);
   const [openAccordions, setOpenAccordions] = useState<Record<string, boolean>>({});
 
   const isAdmin =
@@ -191,37 +192,47 @@ export default function ITTicketsPage() {
 
   async function createTicket(e: React.FormEvent) {
     e.preventDefault();
+    if (newTicketSubmitting) return;
     setNewTicketError(null);
     if (isAdmin || isEngineer) {
       if (!newDeptId || !newRequesterId) {
         setNewTicketError(t("it.selectDepartmentAndRequester"));
         return;
       }
-      await itApi.createTicket({
-        problem_type: newProblemType || null,
-        title: newTitle,
-        description: newDesc,
-        priority: newPriority,
-        department_id: newDeptId,
-        requester_user_id: newRequesterId,
-      });
-    } else {
-      await itApi.createTicket({
-        problem_type: newProblemType || null,
-        title: newTitle,
-        description: newDesc,
-        priority: newPriority,
-      });
     }
-    setNewProblemType("");
-    setNewTitle("");
-    setNewDesc("");
-    setNewPriority("medium");
-    setNewDeptId(null);
-    setNewRequesterId(null);
-    setNewTicketError(null);
-    setModal(null);
-    load();
+    setNewTicketSubmitting(true);
+    try {
+      if (isAdmin || isEngineer) {
+        await itApi.createTicket({
+          problem_type: newProblemType || null,
+          title: newTitle,
+          description: newDesc,
+          priority: newPriority,
+          department_id: newDeptId,
+          requester_user_id: newRequesterId,
+        });
+      } else {
+        await itApi.createTicket({
+          problem_type: newProblemType || null,
+          title: newTitle,
+          description: newDesc,
+          priority: newPriority,
+        });
+      }
+      setNewProblemType("");
+      setNewTitle("");
+      setNewDesc("");
+      setNewPriority("medium");
+      setNewDeptId(null);
+      setNewRequesterId(null);
+      setNewTicketError(null);
+      setModal(null);
+      load();
+    } catch (err) {
+      setNewTicketError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setNewTicketSubmitting(false);
+    }
   }
 
   function deptLabel(d: { name: string; name_ru: string | null }) {
@@ -996,7 +1007,7 @@ export default function ITTicketsPage() {
               </h2>
               <p className="mt-1 text-sm text-slate-600">Create a new IT support ticket</p>
             </div>
-            <form onSubmit={createTicket} className="space-y-6 p-8">
+            <form onSubmit={createTicket} className="space-y-6 p-8" aria-busy={newTicketSubmitting}>
               {(isAdmin || isEngineer) && (
                 <>
                   <p className="text-sm text-slate-600">{t("it.requesterExplain")}</p>
@@ -1125,12 +1136,13 @@ export default function ITTicketsPage() {
                 <button
                   type="submit"
                   disabled={
-                    (isAdmin || isEngineer) &&
-                    (!newDeptId || !newRequesterId || deptUsers.length === 0)
+                    newTicketSubmitting ||
+                    ((isAdmin || isEngineer) &&
+                      (!newDeptId || !newRequesterId || deptUsers.length === 0))
                   }
                   className="rounded-lg bg-primary-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {t("common.save")}
+                  {newTicketSubmitting ? t("common.loading") : t("common.save")}
                 </button>
               </div>
             </form>

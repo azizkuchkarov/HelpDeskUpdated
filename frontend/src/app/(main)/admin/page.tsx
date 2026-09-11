@@ -480,7 +480,7 @@ export default function AdminPage() {
               <section className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
                 <h2 className="mb-4 text-lg font-semibold text-slate-900">Administration</h2>
                 <p className="mb-4 text-sm text-slate-600">User → Administration Engineer → Close process</p>
-                {renderRoleBlock("adm_engineer", "admin.wfAdmEngineer")}
+                {renderRoleBlock("adm_engineer", "admin.wfAdmEngineer", { allowTelegramChatId: true })}
               </section>
 
               {/* Transport: Daily + Overtime */}
@@ -505,9 +505,9 @@ export default function AdminPage() {
               <section className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
                 <h2 className="mb-4 text-lg font-semibold text-slate-900">Translator</h2>
                 <p className="mb-4 text-sm text-slate-600">User → Translator Admin assigns Translator Engineer + Check-in Engineer → Translator translates → Check-in approves → User gets final files</p>
-                {renderRoleBlock("translator_admin", "admin.wfTranslatorAdmin")}
-                {renderRoleBlock("translator_engineer", "admin.wfTranslatorEngineer")}
-                {renderRoleBlock("checkin_engineer", "admin.wfCheckinEngineer")}
+                {renderRoleBlock("translator_admin", "admin.wfTranslatorAdmin", { allowTelegramChatId: true })}
+                {renderRoleBlock("translator_engineer", "admin.wfTranslatorEngineer", { allowTelegramChatId: true })}
+                {renderRoleBlock("checkin_engineer", "admin.wfCheckinEngineer", { allowTelegramChatId: true })}
               </section>
 
               {/* Inventory: Manager assigns items to users */}

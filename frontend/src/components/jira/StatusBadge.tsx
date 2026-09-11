@@ -24,6 +24,18 @@ const STATUS_CONFIG: Record<
     className: "bg-emerald-100 text-emerald-800",
     label: "Closed",
   },
+  in_translation: {
+    className: "bg-blue-100 text-blue-950 ring-1 ring-blue-300/65",
+    label: "In translation",
+  },
+  in_checkin: {
+    className: "bg-amber-100 text-amber-950 ring-1 ring-amber-300/70",
+    label: "In check-in",
+  },
+  in_admin_review: {
+    className: "bg-violet-100 text-violet-950 ring-1 ring-violet-300/70",
+    label: "In admin review",
+  },
   manager_approved: {
     className: "bg-emerald-100 text-emerald-800",
     label: "Manager approved",

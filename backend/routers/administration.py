@@ -12,6 +12,7 @@ from models.administration import AdmTicket, AdmTicketType, MeetingRoom, Meeting
 from models.file_attachment import FileAttachment
 from models.ticket_comment import TicketComment
 from services.minio_service import upload_file, get_presigned_url, stream_object, content_disposition_for_filename
+from services.telegram_service import notify_administration_new_ticket
 
 router = APIRouter()
 
@@ -188,6 +189,15 @@ def create_ticket(d: AdmTicketCreate, db: Session = Depends(get_db), user: User 
             db.flush()
             ticket.it_ticket_id = it_ticket.id
         db.commit()
+    created_by_name = ticket.created_by.display_name or ticket.created_by.ldap_username
+    notify_administration_new_ticket(
+        db=db,
+        ticket_id=ticket.id,
+        ticket_type=ticket.ticket_type,
+        title=ticket.title,
+        priority=ticket.priority or "medium",
+        created_by_name=created_by_name,
+    )
     return {"id": ticket.id, "status": "open", "message": "Ticket created"}
 
 

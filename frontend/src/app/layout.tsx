@@ -14,11 +14,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "ATG HD",
+  title: "ATG",
   description: "ATG Help Desk system",
-  icons: {
-    icon: "/atg-logo.png",
-  },
 };
 
 export default function RootLayout({

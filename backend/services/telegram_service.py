@@ -165,6 +165,90 @@ def notify_transport_new_ticket(
     notify_users(users, message)
 
 
+def notify_translator_new_ticket(
+    db: Session,
+    ticket_id: int,
+    title: str,
+    source_language: str,
+    target_language: str,
+    created_by_name: str,
+) -> None:
+    url = _frontend_base_url()
+    link = f"{url}/translator" if url else ""
+    message = (
+        f"📝 New translation TR-{ticket_id}\n"
+        f"Title: {title}\n"
+        f"Languages: {source_language} → {target_language}\n"
+        f"By: {created_by_name}"
+    )
+    if link:
+        message += f"\nLink: {link}"
+    users = _active_users_by_role(db, "translator_admin")
+    notify_users(users, message)
+
+
+def notify_translator_assigned_to_engineers(
+    ticket_id: int,
+    title: str,
+    source_language: str,
+    target_language: str,
+    translator_user: User,
+    checkin_user: User,
+) -> None:
+    url = _frontend_base_url()
+    link = f"{url}/translator" if url else ""
+    common = f"Title: {title}\nLanguages: {source_language} → {target_language}"
+    msg_trans = f"📌 Translation TR-{ticket_id} assigned to you (translator)\n{common}"
+    msg_check = (
+        f"📋 Translation TR-{ticket_id}: you are Check-in reviewer\n{common}\n"
+        f"You will review after the translator submits."
+    )
+    if link:
+        msg_trans += f"\nLink: {link}"
+        msg_check += f"\nLink: {link}"
+    notify_users([translator_user], msg_trans)
+    notify_users([checkin_user], msg_check)
+
+
+def notify_translator_ready_for_checkin(
+    ticket_id: int,
+    title: str,
+    checkin_user: User,
+) -> None:
+    url = _frontend_base_url()
+    link = f"{url}/translator" if url else ""
+    message = (
+        f"✅ Translation TR-{ticket_id} submitted for check-in\n"
+        f"Title: {title}"
+    )
+    if link:
+        message += f"\nLink: {link}"
+    notify_users([checkin_user], message)
+
+
+def notify_administration_new_ticket(
+    db: Session,
+    ticket_id: int,
+    ticket_type: str,
+    title: str,
+    priority: str,
+    created_by_name: str,
+) -> None:
+    url = _frontend_base_url()
+    link = f"{url}/administration" if url else ""
+    message = (
+        f"🧾 Administration Ticket #{ticket_id}\n"
+        f"Type: {ticket_type}\n"
+        f"Title: {title}\n"
+        f"Priority: {priority}\n"
+        f"By: {created_by_name}"
+    )
+    if link:
+        message += f"\nLink: {link}"
+    users = _active_users_by_role(db, "adm_engineer")
+    notify_users(users, message)
+
+
 def send_test_message_to_user(user: User) -> bool:
     name = user.display_name or user.ldap_username
     message = f"✅ Test notification from HelpDesk\nUser: {name}"
