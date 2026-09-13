@@ -1198,6 +1198,7 @@ function ProjectDetail(props: {
     isMonitor,
     isProjectCoder,
     isProjectTester,
+    projectTesters,
     submitting,
     comments,
     files,
@@ -1364,7 +1365,7 @@ function ProjectDetail(props: {
         <div className="space-y-4">
           <p className="text-sm text-slate-600">{t("projectManagement.testingHint")}</p>
           <div className="flex flex-wrap gap-2">
-            {(isProjectCoder || isTL || isAdmin || isPM) && (
+            {(isProjectCoder || isTL || isPM) && (
               <button type="button" className={btnPrimary} onClick={onNewTask}>
                 {t("projectManagement.newTesterTask")}
               </button>
@@ -1375,7 +1376,7 @@ function ProjectDetail(props: {
               </button>
             )}
           </div>
-          {(isProjectCoder || isTL || isAdmin || isPM) && projectTesters.length === 0 && (
+          {(isProjectCoder || isTL || isPM) && projectTesters.length === 0 && (
             <p className="text-sm text-amber-700">{t("projectManagement.assignTesterFirst")}</p>
           )}
 
