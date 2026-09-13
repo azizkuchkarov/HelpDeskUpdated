@@ -551,6 +551,17 @@ export default function AdminPage() {
                 {renderRoleBlock("it_reassign_engineer", "admin.wfItReassignEngineer")}
               </section>
 
+              {/* IT Project Management */}
+              <section className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
+                <h2 className="mb-4 text-lg font-semibold text-slate-900">IT Project Management</h2>
+                <p className="mb-4 text-sm text-slate-600">{t("admin.wfPmDesc")}</p>
+                {renderRoleBlock("pm_manager", "admin.wfPmManager")}
+                {renderRoleBlock("pm_team_leader", "admin.wfPmTeamLeader")}
+                {renderRoleBlock("pm_deadline_monitor", "admin.wfPmDeadlineMonitor")}
+                {renderRoleBlock("pm_coder", "admin.wfPmCoder")}
+                {renderRoleBlock("pm_tester", "admin.wfPmTester")}
+              </section>
+
               {/* Administration: User → Administration Engineer → Close */}
               <section className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
                 <h2 className="mb-4 text-lg font-semibold text-slate-900">Administration</h2>
@@ -602,17 +613,6 @@ export default function AdminPage() {
                     {t("admin.wfLinkSecretary")}
                   </button>
                 </div>
-              </section>
-
-              {/* IT Project Management */}
-              <section className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
-                <h2 className="mb-4 text-lg font-semibold text-slate-900">IT Project Management</h2>
-                <p className="mb-4 text-sm text-slate-600">{t("admin.wfPmDesc")}</p>
-                {renderRoleBlock("pm_manager", "admin.wfPmManager")}
-                {renderRoleBlock("pm_team_leader", "admin.wfPmTeamLeader")}
-                {renderRoleBlock("pm_deadline_monitor", "admin.wfPmDeadlineMonitor")}
-                {renderRoleBlock("pm_coder", "admin.wfPmCoder")}
-                {renderRoleBlock("pm_tester", "admin.wfPmTester")}
               </section>
             </div>
           )}

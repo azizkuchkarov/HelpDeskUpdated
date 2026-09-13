@@ -458,6 +458,7 @@
     "newTesterTask": "Assign testing task",
     "taskTitle": "Task title",
     "noTesterTasks": "No testing tasks yet",
+    "assignTesterFirst": "First click Assign tester and add a tester to this project. Then you can assign a testing task.",
     "startTesting": "Start testing",
     "markTaskDone": "Mark done",
     "reportBugForTask": "Report issue",

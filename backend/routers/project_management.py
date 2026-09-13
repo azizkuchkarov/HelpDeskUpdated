@@ -1326,10 +1326,15 @@ def create_tester_task(
     p = db.query(ITProject).get(project_id)
     if not p:
         raise HTTPException(404, "Project not found")
-    if not (_is_project_coder(project_id, user.id, db) or _is_global_admin(user, db)):
-        raise HTTPException(403, "Project coder only")
+    if not (
+        _is_project_coder(project_id, user.id, db)
+        or _is_team_leader(user, db)
+        or _is_pm_manager(user, db)
+        or _is_global_admin(user, db)
+    ):
+        raise HTTPException(403, "Project coder, Team Leader or Project Manager only")
     if not _is_project_tester(project_id, d.assigned_tester_id, db):
-        raise HTTPException(400, "assigned_tester_id must be a project tester")
+        raise HTTPException(400, "Assign a tester to this project first (Assign tester), then select them here")
     title = (d.title or "").strip()
     if not title:
         raise HTTPException(400, "Title is required")
