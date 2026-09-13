@@ -538,15 +538,15 @@ export default function ProjectManagementPage() {
             });
             setModal("edit-project");
           }}
-          onAssignCoder={() => {
-            ensureStaffLists();
+          onAssignCoder={async () => {
             setMemberUserId("");
             setModal("assign-coder");
+            await ensureStaffLists();
           }}
-          onAssignTester={() => {
-            ensureStaffLists();
+          onAssignTester={async () => {
             setMemberUserId("");
             setModal("assign-tester");
+            await ensureStaffLists();
           }}
           onSetDeadline={() => {
             setDeadlineValue(activeProject.deadline || "");
@@ -727,6 +727,9 @@ export default function ProjectManagementPage() {
                 ))}
               </select>
             </Field>
+            {coders.length === 0 && (
+              <p className="text-sm text-amber-700">{t("projectManagement.noCodersAvailable")}</p>
+            )}
             <div className="flex justify-end gap-2">
               <button type="button" className={btnSecondary} onClick={() => setModal(null)}>
                 {t("common.cancel")}
@@ -761,6 +764,9 @@ export default function ProjectManagementPage() {
                 ))}
               </select>
             </Field>
+            {testers.length === 0 && (
+              <p className="text-sm text-amber-700">{t("projectManagement.noTestersAvailable")}</p>
+            )}
             <div className="flex justify-end gap-2">
               <button type="button" className={btnSecondary} onClick={() => setModal(null)}>
                 {t("common.cancel")}
