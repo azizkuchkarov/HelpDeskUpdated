@@ -20,9 +20,25 @@ const STATUS_CONFIG: Record<
     className: "bg-amber-200 text-amber-950 ring-1 ring-amber-400/60",
     label: "Closed by engineer",
   },
+  closed_by_coder: {
+    className: "bg-amber-200 text-amber-950 ring-1 ring-amber-400/60",
+    label: "Closed by coder",
+  },
   closed: {
     className: "bg-emerald-100 text-emerald-800",
     label: "Closed",
+  },
+  active: {
+    className: "bg-emerald-100 text-emerald-800",
+    label: "Active",
+  },
+  on_hold: {
+    className: "bg-amber-100 text-amber-950 ring-1 ring-amber-300/70",
+    label: "On hold",
+  },
+  completed: {
+    className: "bg-slate-200 text-slate-800",
+    label: "Completed",
   },
   in_translation: {
     className: "bg-blue-100 text-blue-950 ring-1 ring-blue-300/65",

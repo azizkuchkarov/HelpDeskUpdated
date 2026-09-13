@@ -11,6 +11,14 @@ from .file_attachment import FileAttachment
 from .ticket_comment import TicketComment
 from .inventory import InventoryType, InventoryItem
 from .phone_directory import PhoneDirectoryFile
+from .project_management import (
+    ITProject,
+    ProjectMember,
+    ProjectRequest,
+    TesterTask,
+    PMTeamInfo,
+    PMModuleSettings,
+)
 
 __all__ = [
     "Base",
@@ -39,4 +47,10 @@ __all__ = [
     "InventoryType",
     "InventoryItem",
     "PhoneDirectoryFile",
+    "ITProject",
+    "ProjectMember",
+    "ProjectRequest",
+    "TesterTask",
+    "PMTeamInfo",
+    "PMModuleSettings",
 ]

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLocale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
-import { admin as adminApi } from "@/lib/api";
+import { admin as adminApi, projectManagement as pmApi, type PMTeamInfo, type PMInformation } from "@/lib/api";
 
 type Department = { id: number; name: string; name_ru: string | null; manager_id: number | null; manager_name: string | null };
 type UserRow = {
@@ -37,9 +37,14 @@ const ROLE_OPTIONS = [
   { value: "translator_admin", label: "Translator Admin" },
   { value: "translator_engineer", label: "Translator Engineer" },
   { value: "checkin_engineer", label: "Check-in Engineer" },
+  { value: "pm_manager", label: "PM Manager" },
+  { value: "pm_team_leader", label: "PM Team Leader" },
+  { value: "pm_deadline_monitor", label: "PM Deadline Monitor" },
+  { value: "pm_coder", label: "PM Coder" },
+  { value: "pm_tester", label: "PM Tester" },
 ];
 
-type AdminView = "main" | "workflow-approve" | "new-users" | "departments" | "rooms" | "cars" | "drivers" | "topmanagers";
+type AdminView = "main" | "workflow-approve" | "new-users" | "departments" | "rooms" | "cars" | "drivers" | "topmanagers" | "pminfo";
 
 const adminSections: { id: AdminView; key: string; descKey: string; icon: string }[] = [
   { id: "workflow-approve", key: "admin.workflowApprove", descKey: "admin.workflowApproveDesc", icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" },
@@ -49,6 +54,7 @@ const adminSections: { id: AdminView; key: string; descKey: string; icon: string
   { id: "cars", key: "admin.cars", descKey: "admin.cars", icon: "M8 7h8m-8 4h8m-2 4l2 2 4-4" },
   { id: "drivers", key: "admin.drivers", descKey: "admin.drivers", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
   { id: "topmanagers", key: "admin.topManagers", descKey: "admin.topManagers", icon: "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" },
+  { id: "pminfo", key: "admin.pmInformation", descKey: "admin.pmInformationDesc", icon: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" },
 ];
 
 const btnPrimary = "inline-flex items-center justify-center rounded-input bg-primary-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2";
@@ -66,6 +72,18 @@ export default function AdminPage() {
   const [cars, setCars] = useState<{ id: number; name: string }[]>([]);
   const [drivers, setDrivers] = useState<{ id: number; name: string }[]>([]);
   const [topManagers, setTopManagers] = useState<{ id: number; name: string }[]>([]);
+  const [pmInfo, setPmInfo] = useState<PMInformation | null>(null);
+  const [pmTeam, setPmTeam] = useState<PMTeamInfo[]>([]);
+  const [pmIntroForm, setPmIntroForm] = useState({ intro_title: "", intro_body: "" });
+  const [pmTeamForm, setPmTeamForm] = useState({
+    role_type: "pm_manager",
+    display_name: "",
+    title: "",
+    description: "",
+    user_id: 0,
+    sort_order: 0,
+  });
+  const [editingPmTeamId, setEditingPmTeamId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<string | null>(null);
   const [deptForm, setDeptForm] = useState({ name: "", name_ru: "" });
@@ -220,6 +238,28 @@ export default function AdminPage() {
   useEffect(() => {
     if (isAdmin) load();
   }, [isAdmin]);
+
+  async function loadPmInfo() {
+    try {
+      const [info, team] = await Promise.all([
+        pmApi.information(),
+        pmApi.listTeamInfo(true),
+      ]);
+      setPmInfo(info);
+      setPmTeam(team);
+      setPmIntroForm({
+        intro_title: info.intro_title || "",
+        intro_body: info.intro_body || "",
+      });
+    } catch {
+      setPmInfo(null);
+      setPmTeam([]);
+    }
+  }
+
+  useEffect(() => {
+    if (isAdmin && view === "pminfo") loadPmInfo();
+  }, [isAdmin, view]);
 
   if (!isAdmin) {
     return (
@@ -758,6 +798,116 @@ export default function AdminPage() {
         </>
       )}
 
+      {view === "pminfo" && (
+        <>
+          <div className="page-header">
+            <h1 className="page-title">{t("admin.pmInformation")}</h1>
+            <button
+              type="button"
+              className={btnPrimary}
+              onClick={() => {
+                setEditingPmTeamId(null);
+                setPmTeamForm({
+                  role_type: "pm_manager",
+                  display_name: "",
+                  title: "",
+                  description: "",
+                  user_id: 0,
+                  sort_order: 0,
+                });
+                setModal("pm-team");
+              }}
+            >
+              {t("admin.pmAddTeamMember")}
+            </button>
+          </div>
+          <p className="mt-2 text-sm text-slate-600">{t("admin.pmInformationDesc")}</p>
+
+          <form
+            className="mt-6 space-y-3 rounded-card border border-slate-200 bg-white p-5"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              await pmApi.updateSettings({
+                intro_title: pmIntroForm.intro_title,
+                intro_body: pmIntroForm.intro_body,
+              });
+              await loadPmInfo();
+            }}
+          >
+            <div>
+              <label className={labelClass}>{t("admin.pmIntroTitle")}</label>
+              <input
+                className={inputClass}
+                value={pmIntroForm.intro_title}
+                onChange={(e) => setPmIntroForm((f) => ({ ...f, intro_title: e.target.value }))}
+              />
+            </div>
+            <div>
+              <label className={labelClass}>{t("admin.pmIntroBody")}</label>
+              <textarea
+                className={inputClass}
+                rows={4}
+                value={pmIntroForm.intro_body}
+                onChange={(e) => setPmIntroForm((f) => ({ ...f, intro_body: e.target.value }))}
+              />
+            </div>
+            <button type="submit" className={btnPrimary}>{t("common.save")}</button>
+          </form>
+
+          <ul className="mt-6 space-y-2">
+            {pmTeam.map((row) => (
+              <li key={row.id} className="rounded-card border border-slate-200 bg-white px-4 py-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div>
+                    <p className="font-medium text-slate-900">{row.display_name}</p>
+                    <p className="text-xs text-slate-500">
+                      {row.role_type}
+                      {row.title ? ` · ${row.title}` : ""}
+                      {!row.is_active ? " · inactive" : ""}
+                    </p>
+                    {row.description && <p className="mt-1 text-sm text-slate-600">{row.description}</p>}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className={btnSecondary + " text-sm"}
+                      onClick={() => {
+                        setEditingPmTeamId(row.id);
+                        setPmTeamForm({
+                          role_type: row.role_type,
+                          display_name: row.display_name,
+                          title: row.title || "",
+                          description: row.description || "",
+                          user_id: row.user_id || 0,
+                          sort_order: row.sort_order || 0,
+                        });
+                        setModal("pm-team");
+                      }}
+                    >
+                      {t("common.edit")}
+                    </button>
+                    <button
+                      type="button"
+                      className={btnSecondary + " text-sm text-red-700"}
+                      onClick={async () => {
+                        if (!confirm(t("common.delete") + "?")) return;
+                        await pmApi.deleteTeamInfo(row.id);
+                        await loadPmInfo();
+                      }}
+                    >
+                      {t("common.delete")}
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {pmInfo && !pmTeam.length && (
+            <p className="mt-4 text-sm text-slate-500">{t("projectManagement.infoEmptyBody")}</p>
+          )}
+        </>
+      )}
+
       {/* Modals */}
       {modal === "dept" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={() => setModal(null)}>
@@ -869,6 +1019,106 @@ export default function AdminPage() {
                 </select>
               </div>
               <div className="flex gap-2"><button type="submit" className={btnPrimary}>{t("common.save")}</button><button type="button" onClick={() => setModal(null)} className={btnSecondary}>{t("common.cancel")}</button></div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {modal === "pm-team" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm" onClick={() => setModal(null)}>
+          <div className="modal-panel max-w-md" onClick={(e) => e.stopPropagation()}>
+            <h2 className="mb-4 text-lg font-semibold">
+              {editingPmTeamId ? t("common.edit") : t("admin.pmAddTeamMember")}
+            </h2>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const body = {
+                  role_type: pmTeamForm.role_type,
+                  display_name: pmTeamForm.display_name,
+                  title: pmTeamForm.title || undefined,
+                  description: pmTeamForm.description || undefined,
+                  user_id: pmTeamForm.user_id || undefined,
+                  sort_order: Number(pmTeamForm.sort_order) || 0,
+                };
+                if (editingPmTeamId) {
+                  await pmApi.updateTeamInfo(editingPmTeamId, body);
+                } else {
+                  await pmApi.createTeamInfo(body);
+                }
+                setModal(null);
+                setEditingPmTeamId(null);
+                await loadPmInfo();
+              }}
+            >
+              <div className="mb-3">
+                <label className={labelClass}>{t("admin.pmRoleType")}</label>
+                <select
+                  className={inputClass}
+                  value={pmTeamForm.role_type}
+                  onChange={(e) => setPmTeamForm((f) => ({ ...f, role_type: e.target.value }))}
+                >
+                  <option value="pm_manager">PM Manager</option>
+                  <option value="pm_team_leader">PM Team Leader</option>
+                  <option value="pm_deadline_monitor">PM Deadline Monitor</option>
+                  <option value="pm_coder">PM Coder</option>
+                  <option value="pm_tester">PM Tester</option>
+                </select>
+              </div>
+              <div className="mb-3">
+                <label className={labelClass}>{t("admin.pmDisplayName")}</label>
+                <input
+                  className={inputClass}
+                  required
+                  value={pmTeamForm.display_name}
+                  onChange={(e) => setPmTeamForm((f) => ({ ...f, display_name: e.target.value }))}
+                />
+              </div>
+              <div className="mb-3">
+                <label className={labelClass}>{t("admin.pmPersonTitle")}</label>
+                <input
+                  className={inputClass}
+                  value={pmTeamForm.title}
+                  onChange={(e) => setPmTeamForm((f) => ({ ...f, title: e.target.value }))}
+                />
+              </div>
+              <div className="mb-3">
+                <label className={labelClass}>{t("admin.pmPersonDesc")}</label>
+                <textarea
+                  className={inputClass}
+                  rows={3}
+                  value={pmTeamForm.description}
+                  onChange={(e) => setPmTeamForm((f) => ({ ...f, description: e.target.value }))}
+                />
+              </div>
+              <div className="mb-3">
+                <label className={labelClass}>User (optional)</label>
+                <select
+                  className={inputClass}
+                  value={pmTeamForm.user_id}
+                  onChange={(e) => setPmTeamForm((f) => ({ ...f, user_id: Number(e.target.value) }))}
+                >
+                  <option value={0}>—</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.display_name || u.ldap_username}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-4">
+                <label className={labelClass}>{t("admin.pmSortOrder")}</label>
+                <input
+                  type="number"
+                  className={inputClass}
+                  value={pmTeamForm.sort_order}
+                  onChange={(e) => setPmTeamForm((f) => ({ ...f, sort_order: Number(e.target.value) }))}
+                />
+              </div>
+              <div className="flex gap-2">
+                <button type="submit" className={btnPrimary}>{t("common.save")}</button>
+                <button type="button" onClick={() => setModal(null)} className={btnSecondary}>{t("common.cancel")}</button>
+              </div>
             </form>
           </div>
         </div>

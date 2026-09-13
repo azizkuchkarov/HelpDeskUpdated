@@ -254,3 +254,88 @@ def send_test_message_to_user(user: User) -> bool:
     message = f"✅ Test notification from HelpDesk\nUser: {name}"
     chat_id = (getattr(user, "telegram_chat_id", None) or "").strip()
     return _send_message(chat_id, message)
+
+
+def notify_pm_new_request(
+    db: Session,
+    request_id: int,
+    project_id: int,
+    project_name: str,
+    title: str,
+    request_type: str,
+    priority: str,
+    created_by_name: str,
+) -> None:
+    """Notify project coders about a new change/bug request."""
+    from models.project_management import ProjectMember
+
+    url = _frontend_base_url()
+    link = f"{url}/project-management" if url else ""
+    type_label = "Bug" if request_type == "bug_report" else "Change"
+    message = (
+        f"📋 PM {type_label} Request #{request_id}\n"
+        f"Project: {project_name}\n"
+        f"Title: {title}\n"
+        f"Priority: {priority}\n"
+        f"By: {created_by_name}"
+    )
+    if link:
+        message += f"\nLink: {link}"
+    coder_ids = [
+        m.user_id
+        for m in db.query(ProjectMember)
+        .filter(ProjectMember.project_id == project_id, ProjectMember.member_role == "coder")
+        .all()
+    ]
+    if not coder_ids:
+        # Fallback: all pm_coder + deadline monitor
+        users = _active_users_by_roles(db, ["pm_coder", "pm_deadline_monitor"])
+    else:
+        users = db.query(User).filter(User.id.in_(coder_ids), User.is_active == True).all()  # noqa: E712
+        monitors = _active_users_by_role(db, "pm_deadline_monitor")
+        users = list(users) + list(monitors)
+    notify_users(users, message)
+
+
+def notify_pm_request_taken(
+    db: Session,
+    request_id: int,
+    title: str,
+    coder: User,
+    created_by_id: int,
+) -> None:
+    url = _frontend_base_url()
+    link = f"{url}/project-management" if url else ""
+    coder_name = coder.display_name or coder.ldap_username
+    message = (
+        f"📌 PM Request #{request_id} taken\n"
+        f"Title: {title}\n"
+        f"Coder: {coder_name}"
+    )
+    if link:
+        message += f"\nLink: {link}"
+    creator = db.query(User).get(created_by_id)
+    recipients = [coder]
+    if creator:
+        recipients.append(creator)
+    notify_users(recipients, message)
+
+
+def notify_pm_request_closed(
+    db: Session,
+    request_id: int,
+    title: str,
+    created_by_id: int,
+) -> None:
+    url = _frontend_base_url()
+    link = f"{url}/project-management" if url else ""
+    message = (
+        f"✅ PM Request #{request_id} closed by coder\n"
+        f"Title: {title}\n"
+        f"Please confirm or reopen."
+    )
+    if link:
+        message += f"\nLink: {link}"
+    creator = db.query(User).get(created_by_id)
+    if creator:
+        notify_users([creator], message)

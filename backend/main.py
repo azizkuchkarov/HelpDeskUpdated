@@ -27,8 +27,14 @@ from models import (  # noqa: F401 - register all tables
     TopManagerAvailability,
     FileAttachment,
     TicketComment,
+    ITProject,
+    ProjectMember,
+    ProjectRequest,
+    TesterTask,
+    PMTeamInfo,
+    PMModuleSettings,
 )
-from routers import auth, admin, it, administration, transport, travel, top_managers, translator, inventory, phone_directory
+from routers import auth, admin, it, administration, transport, travel, top_managers, translator, inventory, phone_directory, project_management
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -60,6 +66,7 @@ app.include_router(top_managers.router, prefix="/api/top-managers", tags=["top-m
 app.include_router(translator.router, prefix="/api/translator", tags=["translator"])
 app.include_router(inventory.router, prefix="/api/inventory", tags=["inventory"])
 app.include_router(phone_directory.router, prefix="/api/phone-directory", tags=["phone-directory"])
+app.include_router(project_management.router, prefix="/api/project-management", tags=["project-management"])
 
 
 @app.get("/api/health")

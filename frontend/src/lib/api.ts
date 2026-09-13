@@ -560,3 +560,257 @@ export const topManagers = {
     }),
   myManagers: () => api<TopManagerMyManager[]>("/top-managers/my-managers"),
 };
+
+export type PMMember = {
+  id: number;
+  project_id: number;
+  user_id: number;
+  user_name: string | null;
+  member_role: "coder" | "tester" | string;
+  created_at: string | null;
+};
+
+export type ITProject = {
+  id: number;
+  name: string;
+  description: string | null;
+  info: string | null;
+  status: string;
+  created_by_id: number;
+  created_by_name: string | null;
+  deadline: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  members?: PMMember[];
+  coder_count?: number;
+  tester_count?: number;
+};
+
+export type ProjectRequest = {
+  id: number;
+  project_id: number;
+  project_name: string | null;
+  title: string;
+  description: string | null;
+  request_type: string;
+  status: string;
+  priority: string;
+  created_by_id: number;
+  created_by_name: string | null;
+  assigned_coder_id: number | null;
+  assigned_coder_name: string | null;
+  tester_task_id?: number | null;
+  deadline: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  closed_at: string | null;
+  confirmed_at: string | null;
+  is_overdue?: boolean;
+};
+
+export type TesterTask = {
+  id: number;
+  project_id: number;
+  title: string;
+  description: string | null;
+  status: string;
+  created_by_id: number;
+  created_by_name: string | null;
+  assigned_tester_id: number;
+  assigned_tester_name: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  done_at: string | null;
+};
+
+export type PMTeamInfo = {
+  id: number;
+  role_type: string;
+  user_id: number | null;
+  user_name: string | null;
+  display_name: string;
+  title: string | null;
+  description: string | null;
+  sort_order: number;
+  is_active: boolean;
+  updated_at: string | null;
+};
+
+export type PMInformation = {
+  intro_title: string | null;
+  intro_body: string | null;
+  team: PMTeamInfo[];
+};
+
+export type PMMonitoring = {
+  counts: {
+    open: number;
+    in_progress: number;
+    closed_by_coder: number;
+    overdue_projects: number;
+    overdue_requests: number;
+    active_projects: number;
+  };
+  overdue_projects: ITProject[];
+  overdue_requests: ProjectRequest[];
+  open_requests: ProjectRequest[];
+  in_progress_requests: ProjectRequest[];
+};
+
+export type PMUserOption = { id: number; display_name: string | null; ldap_username: string };
+
+export const projectManagement = {
+  information: () => api<PMInformation>("/project-management/information"),
+  updateSettings: (body: { intro_title?: string; intro_body?: string }) =>
+    api<{ intro_title: string | null; intro_body: string | null }>("/project-management/information/settings", {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+  listTeamInfo: (includeInactive?: boolean) =>
+    api<PMTeamInfo[]>(
+      `/project-management/information/team${includeInactive ? "?include_inactive=true" : ""}`
+    ),
+  createTeamInfo: (body: {
+    role_type: string;
+    display_name: string;
+    title?: string;
+    description?: string;
+    user_id?: number;
+    sort_order?: number;
+  }) =>
+    api<PMTeamInfo>("/project-management/information/team", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateTeamInfo: (
+    id: number,
+    body: {
+      role_type?: string;
+      display_name?: string;
+      title?: string;
+      description?: string;
+      user_id?: number | null;
+      sort_order?: number;
+      is_active?: boolean;
+    }
+  ) =>
+    api<PMTeamInfo>("/project-management/information/team/" + id, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteTeamInfo: (id: number) =>
+    api<{ ok: boolean }>("/project-management/information/team/" + id, { method: "DELETE" }),
+  projects: (params?: { status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.status) q.set("status", params.status);
+    const qs = q.toString();
+    return api<ITProject[]>(`/project-management/projects${qs ? `?${qs}` : ""}`);
+  },
+  getProject: (id: number) => api<ITProject>("/project-management/projects/" + id),
+  createProject: (body: { name: string; description?: string; info?: string }) =>
+    api<ITProject>("/project-management/projects", { method: "POST", body: JSON.stringify(body) }),
+  updateProject: (
+    id: number,
+    body: {
+      name?: string;
+      description?: string;
+      info?: string;
+      status?: string;
+      deadline?: string | null;
+      clear_deadline?: boolean;
+    }
+  ) => api<ITProject>("/project-management/projects/" + id, { method: "PATCH", body: JSON.stringify(body) }),
+  addMember: (projectId: number, body: { user_id: number; member_role: string }) =>
+    api<PMMember>("/project-management/projects/" + projectId + "/members", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  removeMember: (projectId: number, memberId: number) =>
+    api<{ ok: boolean }>("/project-management/projects/" + projectId + "/members/" + memberId, { method: "DELETE" }),
+  coders: () => api<PMUserOption[]>("/project-management/coders"),
+  testers: () => api<PMUserOption[]>("/project-management/testers"),
+  testerTasks: (projectId: number) =>
+    api<TesterTask[]>("/project-management/projects/" + projectId + "/tester-tasks"),
+  createTesterTask: (
+    projectId: number,
+    body: { title: string; description?: string; assigned_tester_id: number }
+  ) =>
+    api<TesterTask>("/project-management/projects/" + projectId + "/tester-tasks", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateTesterTask: (
+    projectId: number,
+    taskId: number,
+    body: { title?: string; description?: string; status?: string; assigned_tester_id?: number }
+  ) =>
+    api<TesterTask>("/project-management/projects/" + projectId + "/tester-tasks/" + taskId, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  deleteTesterTask: (projectId: number, taskId: number) =>
+    api<{ ok: boolean }>("/project-management/projects/" + projectId + "/tester-tasks/" + taskId, {
+      method: "DELETE",
+    }),
+  requests: (params?: {
+    project_id?: number;
+    status?: string;
+    mine?: boolean;
+    assigned_to_me?: boolean;
+    overdue?: boolean;
+  }) => {
+    const q = new URLSearchParams();
+    if (params?.project_id != null) q.set("project_id", String(params.project_id));
+    if (params?.status) q.set("status", params.status);
+    if (params?.mine) q.set("mine", "true");
+    if (params?.assigned_to_me) q.set("assigned_to_me", "true");
+    if (params?.overdue) q.set("overdue", "true");
+    const qs = q.toString();
+    return api<ProjectRequest[]>(`/project-management/requests${qs ? `?${qs}` : ""}`);
+  },
+  getRequest: (id: number) => api<ProjectRequest>("/project-management/requests/" + id),
+  createRequest: (body: {
+    project_id: number;
+    title: string;
+    description?: string;
+    request_type?: string;
+    priority?: string;
+    tester_task_id?: number;
+  }) => api<ProjectRequest>("/project-management/requests", { method: "POST", body: JSON.stringify(body) }),
+  takeRequest: (id: number) => api<ProjectRequest>("/project-management/requests/" + id + "/take", { method: "POST" }),
+  closeRequest: (id: number) => api<ProjectRequest>("/project-management/requests/" + id + "/close", { method: "POST" }),
+  confirmRequest: (id: number) =>
+    api<ProjectRequest>("/project-management/requests/" + id + "/confirm", { method: "POST" }),
+  reopenRequest: (id: number) =>
+    api<ProjectRequest>("/project-management/requests/" + id + "/reopen", { method: "POST" }),
+  setRequestDeadline: (id: number, body: { deadline?: string | null; clear_deadline?: boolean }) =>
+    api<ProjectRequest>("/project-management/requests/" + id + "/deadline", {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  monitoring: () => api<PMMonitoring>("/project-management/monitoring"),
+  comments: (requestId: number) =>
+    api<{ id: number; author_id: number; author_name: string | null; body: string; created_at: string | null }[]>(
+      "/project-management/requests/" + requestId + "/comments"
+    ),
+  addComment: (requestId: number, body: string) =>
+    api("/project-management/requests/" + requestId + "/comments", {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
+  files: (requestId: number) =>
+    api<
+      {
+        id: number;
+        file_name: string;
+        file_size: number;
+        content_type: string | null;
+        uploaded_by_name: string | null;
+        created_at: string | null;
+      }[]
+    >("/project-management/requests/" + requestId + "/files"),
+  uploadFile: (requestId: number, file: File) =>
+    uploadFileApi("/project-management/requests/" + requestId + "/files", file),
+  downloadFile: (requestId: number, fileId: number, fileName: string) =>
+    downloadFileApi("/project-management/requests/" + requestId + "/files/" + fileId + "/file", fileName),
+};

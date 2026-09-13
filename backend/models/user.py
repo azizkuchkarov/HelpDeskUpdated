@@ -20,6 +20,12 @@ class RoleType(str, enum.Enum):
     TRANSPORT_ENGINEER = "transport_engineer"
     HR_MANAGER = "hr_manager"
     ADM_MONITORING_MANAGER = "adm_monitoring_manager"
+    # IT Project Management
+    PM_MANAGER = "pm_manager"
+    PM_TEAM_LEADER = "pm_team_leader"
+    PM_DEADLINE_MONITOR = "pm_deadline_monitor"
+    PM_CODER = "pm_coder"
+    PM_TESTER = "pm_tester"
 
 
 class User(Base):

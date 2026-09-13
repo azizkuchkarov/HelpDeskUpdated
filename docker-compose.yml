@@ -61,7 +61,7 @@ services:
       - helpdesk-network
     restart: unless-stopped
     # Run migrations on startup
-    command: sh -c "python add_department_manager_column.py 2>/dev/null || true && python add_transport_approver_column.py 2>/dev/null || true && python add_transport_fields_column.py 2>/dev/null || true && python add_transport_start_time_column.py 2>/dev/null || true && python add_it_problem_type_column.py 2>/dev/null || true && python add_car_driver_columns.py 2>/dev/null || true && python make_meeting_subject_nullable.py 2>/dev/null || true && python add_file_attachments_table.py 2>/dev/null || true && python add_priority_columns.py 2>/dev/null || true && python add_availability_comment_column.py 2>/dev/null || true && python seed_data.py 2>/dev/null || true && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    command: sh -c "python add_department_manager_column.py 2>/dev/null || true && python add_transport_approver_column.py 2>/dev/null || true && python add_transport_fields_column.py 2>/dev/null || true && python add_transport_start_time_column.py 2>/dev/null || true && python add_it_problem_type_column.py 2>/dev/null || true && python add_car_driver_columns.py 2>/dev/null || true && python make_meeting_subject_nullable.py 2>/dev/null || true && python add_file_attachments_table.py 2>/dev/null || true && python add_priority_columns.py 2>/dev/null || true && python add_availability_comment_column.py 2>/dev/null || true && python add_project_management_tables.py 2>/dev/null || true && python seed_data.py 2>/dev/null || true && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
 
   frontend:
     build:

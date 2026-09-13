@@ -19,6 +19,7 @@ const nav: NavItem[] = [
   { href: "/transport", key: "nav.transport" },
   { href: "/travel", key: "nav.travel" },
   { href: "/translator", key: "nav.translator" },
+  { href: "/project-management", key: "nav.projectManagement" },
   { href: "/inventory", key: "nav.inventory" },
   { href: "/top-managers", key: "nav.topManagers" },
   { href: "/workflow", key: "nav.workflow" },
