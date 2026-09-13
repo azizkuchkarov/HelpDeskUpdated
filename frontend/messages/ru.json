@@ -269,6 +269,8 @@
     "pmPersonTitle": "Должность",
     "pmPersonDesc": "Описание / обязанности",
     "pmSortOrder": "Порядок",
+    "pmUploadPhoto": "Загрузить фото",
+    "pmRemovePhoto": "Удалить фото",
     "newUsersDesc": "Пользователи без отдела — назначьте отдел",
     "departmentsDesc": "Отделы с руководителями и пользователями",
     "addDepartment": "Добавить отдел",

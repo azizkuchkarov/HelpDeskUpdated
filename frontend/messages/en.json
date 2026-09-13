@@ -269,6 +269,8 @@
     "pmPersonTitle": "Title / position",
     "pmPersonDesc": "Description / duties",
     "pmSortOrder": "Sort order",
+    "pmUploadPhoto": "Upload photo",
+    "pmRemovePhoto": "Remove photo",
     "newUsersDesc": "Users without department — assign department to move",
     "departmentsDesc": "Departments with managers and users",
     "addDepartment": "Add department",

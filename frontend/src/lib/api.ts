@@ -631,6 +631,8 @@ export type PMTeamInfo = {
   display_name: string;
   title: string | null;
   description: string | null;
+  photo_url?: string | null;
+  has_photo?: boolean;
   sort_order: number;
   is_active: boolean;
   updated_at: string | null;
@@ -700,6 +702,20 @@ export const projectManagement = {
     }),
   deleteTeamInfo: (id: number) =>
     api<{ ok: boolean }>("/project-management/information/team/" + id, { method: "DELETE" }),
+  uploadTeamPhoto: (id: number, file: File) =>
+    uploadFileApi<PMTeamInfo>("/project-management/information/team/" + id + "/photo", file),
+  deleteTeamPhoto: (id: number) =>
+    api<PMTeamInfo>("/project-management/information/team/" + id + "/photo", { method: "DELETE" }),
+  /** Authenticated blob URL for team photo (revoke with URL.revokeObjectURL when done). */
+  getTeamPhotoObjectUrl: async (id: number): Promise<string | null> => {
+    const token = getToken();
+    const headers: HeadersInit = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    const res = await fetch(`${API_BASE}/project-management/information/team/${id}/photo`, { headers });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  },
   projects: (params?: { status?: string }) => {
     const q = new URLSearchParams();
     if (params?.status) q.set("status", params.status);

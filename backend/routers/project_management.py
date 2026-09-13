@@ -181,6 +181,12 @@ def _tester_task_dict(task: TesterTask) -> dict:
 
 
 def _team_info_dict(row: PMTeamInfo) -> dict:
+    photo_url = None
+    if row.photo_path:
+        try:
+            photo_url = get_presigned_url(row.photo_path, expires_seconds=3600)
+        except Exception:
+            photo_url = None
     return {
         "id": row.id,
         "role_type": row.role_type,
@@ -189,6 +195,8 @@ def _team_info_dict(row: PMTeamInfo) -> dict:
         "display_name": row.display_name,
         "title": row.title,
         "description": row.description,
+        "photo_url": photo_url,
+        "has_photo": bool(row.photo_path),
         "sort_order": row.sort_order or 0,
         "is_active": bool(row.is_active),
         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
@@ -1214,6 +1222,78 @@ def delete_team_info(
     db.delete(row)
     db.commit()
     return {"ok": True}
+
+
+@router.post("/information/team/{info_id}/photo")
+async def upload_team_photo(
+    info_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not _is_global_admin(user, db):
+        raise HTTPException(403, "Global Admin only")
+    row = db.query(PMTeamInfo).get(info_id)
+    if not row:
+        raise HTTPException(404, "Not found")
+    content_type = (file.content_type or "").lower()
+    if not content_type.startswith("image/"):
+        raise HTTPException(400, "Only image files are allowed")
+    file_data = await file.read()
+    if len(file_data) == 0:
+        raise HTTPException(400, "File is empty")
+    if len(file_data) > 5 * 1024 * 1024:
+        raise HTTPException(400, "Image must be under 5MB")
+    try:
+        file_path = upload_file(
+            file_data=file_data,
+            content_type=content_type or "image/jpeg",
+            folder=f"pm_team/{info_id}",
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Failed to upload photo: {str(e)}")
+    row.photo_path = file_path
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    row = db.query(PMTeamInfo).options(joinedload(PMTeamInfo.user)).get(info_id)
+    return _team_info_dict(row)
+
+
+@router.delete("/information/team/{info_id}/photo")
+def delete_team_photo(
+    info_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if not _is_global_admin(user, db):
+        raise HTTPException(403, "Global Admin only")
+    row = db.query(PMTeamInfo).get(info_id)
+    if not row:
+        raise HTTPException(404, "Not found")
+    row.photo_path = None
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    row = db.query(PMTeamInfo).options(joinedload(PMTeamInfo.user)).get(info_id)
+    return _team_info_dict(row)
+
+
+@router.get("/information/team/{info_id}/photo")
+def stream_team_photo(
+    info_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    row = db.query(PMTeamInfo).get(info_id)
+    if not row or not row.photo_path:
+        raise HTTPException(404, "Photo not found")
+    try:
+        return StreamingResponse(
+            stream_object(row.photo_path),
+            media_type="image/jpeg",
+            headers={"Cache-Control": "private, max-age=300"},
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Failed to stream photo: {str(e)}")
 
 
 # --- Testing tasks ---

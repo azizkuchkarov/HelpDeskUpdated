@@ -61,7 +61,7 @@ export default function ProjectManagementPage() {
   const isTL = hasRole("pm_team_leader") || isAdmin;
   const isMonitor = hasRole("pm_deadline_monitor") || isAdmin;
 
-  const [mainTab, setMainTab] = useState<MainTab>("information");
+  const [mainTab, setMainTab] = useState<MainTab>("projects");
   const [detailTab, setDetailTab] = useState<DetailTab>("overview");
   const [info, setInfo] = useState<PMInformation | null>(null);
   const [projects, setProjects] = useState<ITProject[]>([]);
@@ -71,7 +71,10 @@ export default function ProjectManagementPage() {
   const [monitoring, setMonitoring] = useState<PMMonitoring | null>(null);
   const [coders, setCoders] = useState<PMUserOption[]>([]);
   const [testers, setTesters] = useState<PMUserOption[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
+  const [infoLoaded, setInfoLoaded] = useState(false);
+  const [monitoringLoaded, setMonitoringLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<Modal>(null);
   const [selectedRequest, setSelectedRequest] = useState<ProjectRequest | null>(null);
@@ -125,33 +128,58 @@ export default function ProjectManagementPage() {
     [activeProject]
   );
 
-  const loadBase = useCallback(async () => {
-    setLoading(true);
+  const loadProjects = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     setError(null);
     try {
-      const [infoData, projectsData] = await Promise.all([pmApi.information(), pmApi.projects()]);
-      setInfo(infoData);
+      const projectsData = await pmApi.projects();
       setProjects(projectsData);
-      if (isMonitor) {
-        try {
-          setMonitoring(await pmApi.monitoring());
-        } catch {
-          setMonitoring(null);
-        }
-      }
-      try {
-        const [c, te] = await Promise.all([pmApi.coders(), pmApi.testers()]);
-        setCoders(c);
-        setTesters(te);
-      } catch {
-        /* optional */
-      }
+      setProjectsLoaded(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
+    }
+  }, []);
+
+  const loadInformation = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
+    setError(null);
+    try {
+      setInfo(await pmApi.information());
+      setInfoLoaded(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (showSpinner) setLoading(false);
+    }
+  }, []);
+
+  const loadMonitoring = useCallback(async (showSpinner = true) => {
+    if (!isMonitor) return;
+    if (showSpinner) setLoading(true);
+    setError(null);
+    try {
+      setMonitoring(await pmApi.monitoring());
+      setMonitoringLoaded(true);
+    } catch (e) {
+      setMonitoring(null);
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      if (showSpinner) setLoading(false);
     }
   }, [isMonitor]);
+
+  const ensureStaffLists = useCallback(async () => {
+    if (coders.length && testers.length) return;
+    try {
+      const [c, te] = await Promise.all([pmApi.coders(), pmApi.testers()]);
+      setCoders(c);
+      setTesters(te);
+    } catch {
+      /* optional */
+    }
+  }, [coders.length, testers.length]);
 
   const loadProjectDetail = useCallback(async (projectId: number) => {
     const [p, reqs, tasks] = await Promise.all([
@@ -166,8 +194,23 @@ export default function ProjectManagementPage() {
   }, []);
 
   useEffect(() => {
-    loadBase();
-  }, [loadBase]);
+    if (mainTab === "projects" && !projectsLoaded && !activeProject) {
+      loadProjects();
+    } else if (mainTab === "information" && !infoLoaded) {
+      loadInformation();
+    } else if (mainTab === "monitoring" && !monitoringLoaded) {
+      loadMonitoring();
+    }
+  }, [
+    mainTab,
+    projectsLoaded,
+    infoLoaded,
+    monitoringLoaded,
+    activeProject,
+    loadProjects,
+    loadInformation,
+    loadMonitoring,
+  ]);
 
   useEffect(() => {
     if (!selectedRequest) {
@@ -202,24 +245,24 @@ export default function ProjectManagementPage() {
     setError(null);
     setSelectedRequest(null);
     setDetailTab("overview");
-    setLoading(true);
+    setActiveProject(p);
     try {
       await loadProjectDetail(p.id);
-      setMainTab("projects");
+      ensureStaffLists();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
     }
   }
 
   async function refreshActive() {
-    if (!activeProject) {
-      await loadBase();
+    if (activeProject) {
+      await loadProjectDetail(activeProject.id);
+      await loadProjects(false);
       return;
     }
-    await loadProjectDetail(activeProject.id);
-    await loadBase();
+    if (mainTab === "projects") await loadProjects(false);
+    else if (mainTab === "information") await loadInformation(false);
+    else if (mainTab === "monitoring") await loadMonitoring(false);
   }
 
   async function createProject(e: React.FormEvent) {
@@ -234,7 +277,8 @@ export default function ProjectManagementPage() {
       });
       setModal(null);
       setProjectForm({ name: "", description: "", info: "", status: "active" });
-      await loadBase();
+      setProjectsLoaded(true);
+      await loadProjects(false);
       await openProject(p);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -412,9 +456,9 @@ export default function ProjectManagementPage() {
   const bugRequests = projectRequests.filter((r) => r.request_type === "bug_report");
 
   const mainTabs: { id: MainTab; label: string; show: boolean }[] = [
-    { id: "information", label: t("projectManagement.tabInformation"), show: true },
     { id: "projects", label: t("projectManagement.tabProjects"), show: true },
     { id: "monitoring", label: t("projectManagement.tabMonitoring"), show: isMonitor },
+    { id: "information", label: t("projectManagement.tabInformation"), show: true },
   ];
 
   return (
@@ -495,10 +539,12 @@ export default function ProjectManagementPage() {
             setModal("edit-project");
           }}
           onAssignCoder={() => {
+            ensureStaffLists();
             setMemberUserId("");
             setModal("assign-coder");
           }}
           onAssignTester={() => {
+            ensureStaffLists();
             setMemberUserId("");
             setModal("assign-tester");
           }}
@@ -920,6 +966,58 @@ export default function ProjectManagementPage() {
   );
 }
 
+function TeamPhotoAvatar({
+  infoId,
+  hasPhoto,
+  name,
+  sizeClass = "size-16",
+}: {
+  infoId: number;
+  hasPhoto?: boolean;
+  name: string;
+  sizeClass?: string;
+}) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!hasPhoto) {
+      setSrc(null);
+      return;
+    }
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    pmApi.getTeamPhotoObjectUrl(infoId).then((url) => {
+      if (cancelled) {
+        if (url) URL.revokeObjectURL(url);
+        return;
+      }
+      objectUrl = url;
+      setSrc(url);
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [infoId, hasPhoto]);
+
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt={name}
+        className={`${sizeClass} rounded-full object-cover ring-2 ring-slate-100`}
+      />
+    );
+  }
+  return (
+    <div
+      className={`flex ${sizeClass} items-center justify-center rounded-full bg-primary-100 text-lg font-semibold text-primary-700`}
+    >
+      {(name || "?").slice(0, 1).toUpperCase()}
+    </div>
+  );
+}
+
 function InformationView({
   info,
   t,
@@ -957,13 +1055,22 @@ function InformationView({
               key={row.id}
               className="rounded-card border border-slate-200 bg-white p-5 shadow-sm"
             >
-              <p className="text-xs font-medium uppercase tracking-wider text-primary-700">
-                {t(ROLE_LABEL_KEYS[row.role_type] || row.role_type)}
-              </p>
-              <p className="mt-1 text-lg font-semibold text-slate-900">{row.display_name}</p>
-              {row.title && <p className="text-sm text-slate-500">{row.title}</p>}
+              <div className="mb-3 flex items-center gap-3">
+                <TeamPhotoAvatar
+                  infoId={row.id}
+                  hasPhoto={row.has_photo}
+                  name={row.display_name}
+                />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-wider text-primary-700">
+                    {t(ROLE_LABEL_KEYS[row.role_type] || row.role_type)}
+                  </p>
+                  <p className="truncate text-lg font-semibold text-slate-900">{row.display_name}</p>
+                  {row.title && <p className="truncate text-sm text-slate-500">{row.title}</p>}
+                </div>
+              </div>
               {row.description && (
-                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{row.description}</p>
+                <p className="whitespace-pre-wrap text-sm text-slate-600">{row.description}</p>
               )}
             </div>
           ))}

@@ -6,6 +6,41 @@ import { useLocale } from "@/lib/i18n";
 import { useAuth } from "@/lib/auth";
 import { admin as adminApi, projectManagement as pmApi, type PMTeamInfo, type PMInformation } from "@/lib/api";
 
+function AdminTeamPhoto({ infoId, hasPhoto, name }: { infoId: number; hasPhoto?: boolean; name: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  useEffect(() => {
+    if (!hasPhoto) {
+      setSrc(null);
+      return;
+    }
+    let objectUrl: string | null = null;
+    let cancelled = false;
+    pmApi.getTeamPhotoObjectUrl(infoId).then((url) => {
+      if (cancelled) {
+        if (url) URL.revokeObjectURL(url);
+        return;
+      }
+      objectUrl = url;
+      setSrc(url);
+    });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [infoId, hasPhoto]);
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={src} alt={name} className="size-14 rounded-full object-cover ring-1 ring-slate-200" />
+    );
+  }
+  return (
+    <div className="flex size-14 items-center justify-center rounded-full bg-slate-100 text-sm font-semibold text-slate-600">
+      {(name || "?").slice(0, 1).toUpperCase()}
+    </div>
+  );
+}
+
 type Department = { id: number; name: string; name_ru: string | null; manager_id: number | null; manager_name: string | null };
 type UserRow = {
   id: number;
@@ -858,14 +893,51 @@ export default function AdminPage() {
             {pmTeam.map((row) => (
               <li key={row.id} className="rounded-card border border-slate-200 bg-white px-4 py-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-slate-900">{row.display_name}</p>
-                    <p className="text-xs text-slate-500">
-                      {row.role_type}
-                      {row.title ? ` · ${row.title}` : ""}
-                      {!row.is_active ? " · inactive" : ""}
-                    </p>
-                    {row.description && <p className="mt-1 text-sm text-slate-600">{row.description}</p>}
+                  <div className="flex items-start gap-3">
+                    <AdminTeamPhoto infoId={row.id} hasPhoto={row.has_photo} name={row.display_name} />
+                    <div>
+                      <p className="font-medium text-slate-900">{row.display_name}</p>
+                      <p className="text-xs text-slate-500">
+                        {row.role_type}
+                        {row.title ? ` · ${row.title}` : ""}
+                        {!row.is_active ? " · inactive" : ""}
+                      </p>
+                      {row.description && <p className="mt-1 text-sm text-slate-600">{row.description}</p>}
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <label className={btnSecondary + " cursor-pointer text-xs"}>
+                          {t("admin.pmUploadPhoto")}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                await pmApi.uploadTeamPhoto(row.id, file);
+                                await loadPmInfo();
+                              } catch (err) {
+                                alert(err instanceof Error ? err.message : String(err));
+                              } finally {
+                                e.target.value = "";
+                              }
+                            }}
+                          />
+                        </label>
+                        {row.has_photo && (
+                          <button
+                            type="button"
+                            className={btnSecondary + " text-xs text-red-700"}
+                            onClick={async () => {
+                              await pmApi.deleteTeamPhoto(row.id);
+                              await loadPmInfo();
+                            }}
+                          >
+                            {t("admin.pmRemovePhoto")}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                   <div className="flex gap-2">
                     <button

@@ -42,6 +42,11 @@ def main():
             print("Added project_requests.tester_task_id")
         else:
             print("project_requests.tester_task_id already exists")
+        if not column_exists(conn, "pm_team_info", "photo_path"):
+            conn.execute(text("ALTER TABLE pm_team_info ADD COLUMN photo_path VARCHAR(1000)"))
+            print("Added pm_team_info.photo_path")
+        else:
+            print("pm_team_info.photo_path already exists")
     print("Done.")
 
 

@@ -96,6 +96,7 @@ class PMTeamInfo(Base):
     display_name = Column(String(255), nullable=False)
     title = Column(String(255), nullable=True)
     description = Column(Text, nullable=True)
+    photo_path = Column(String(1000), nullable=True)
     sort_order = Column(Integer, default=0)
     is_active = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
