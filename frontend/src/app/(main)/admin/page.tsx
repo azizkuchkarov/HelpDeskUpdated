@@ -555,11 +555,11 @@ export default function AdminPage() {
               <section className="rounded-card border border-slate-200 bg-white p-6 shadow-card">
                 <h2 className="mb-4 text-lg font-semibold text-slate-900">IT Project Management</h2>
                 <p className="mb-4 text-sm text-slate-600">{t("admin.wfPmDesc")}</p>
-                {renderRoleBlock("pm_manager", "admin.wfPmManager")}
-                {renderRoleBlock("pm_team_leader", "admin.wfPmTeamLeader")}
-                {renderRoleBlock("pm_deadline_monitor", "admin.wfPmDeadlineMonitor")}
-                {renderRoleBlock("pm_coder", "admin.wfPmCoder")}
-                {renderRoleBlock("pm_tester", "admin.wfPmTester")}
+                {renderRoleBlock("pm_manager", "admin.wfPmManager", { allowTelegramChatId: true })}
+                {renderRoleBlock("pm_team_leader", "admin.wfPmTeamLeader", { allowTelegramChatId: true })}
+                {renderRoleBlock("pm_deadline_monitor", "admin.wfPmDeadlineMonitor", { allowTelegramChatId: true })}
+                {renderRoleBlock("pm_coder", "admin.wfPmCoder", { allowTelegramChatId: true })}
+                {renderRoleBlock("pm_tester", "admin.wfPmTester", { allowTelegramChatId: true })}
               </section>
 
               {/* Administration: User → Administration Engineer → Close */}
