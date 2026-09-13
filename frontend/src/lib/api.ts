@@ -606,6 +606,8 @@ export type ProjectRequest = {
   updated_at: string | null;
   closed_at: string | null;
   confirmed_at: string | null;
+  rating: number | null;
+  rated_at: string | null;
   is_overdue?: boolean;
 };
 
@@ -797,8 +799,11 @@ export const projectManagement = {
   }) => api<ProjectRequest>("/project-management/requests", { method: "POST", body: JSON.stringify(body) }),
   takeRequest: (id: number) => api<ProjectRequest>("/project-management/requests/" + id + "/take", { method: "POST" }),
   closeRequest: (id: number) => api<ProjectRequest>("/project-management/requests/" + id + "/close", { method: "POST" }),
-  confirmRequest: (id: number) =>
-    api<ProjectRequest>("/project-management/requests/" + id + "/confirm", { method: "POST" }),
+  confirmRequest: (id: number, rating: number) =>
+    api<ProjectRequest>("/project-management/requests/" + id + "/confirm", {
+      method: "POST",
+      body: JSON.stringify({ rating }),
+    }),
   reopenRequest: (id: number) =>
     api<ProjectRequest>("/project-management/requests/" + id + "/reopen", { method: "POST" }),
   setRequestDeadline: (id: number, body: { deadline?: string | null; clear_deadline?: boolean }) =>

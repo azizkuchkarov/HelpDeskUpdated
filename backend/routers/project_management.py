@@ -165,6 +165,8 @@ def _request_dict(r: ProjectRequest) -> dict:
         "updated_at": r.updated_at.isoformat() if r.updated_at else None,
         "closed_at": r.closed_at.isoformat() if r.closed_at else None,
         "confirmed_at": r.confirmed_at.isoformat() if r.confirmed_at else None,
+        "rating": r.rating,
+        "rated_at": r.rated_at.isoformat() if r.rated_at else None,
         "is_overdue": bool(
             r.deadline
             and r.status not in ("closed",)
@@ -248,6 +250,10 @@ class RequestCreate(BaseModel):
 class RequestDeadlineUpdate(BaseModel):
     deadline: Optional[str] = None
     clear_deadline: Optional[bool] = None
+
+
+class RequestConfirm(BaseModel):
+    rating: int  # 1–5
 
 
 class CommentCreate(BaseModel):
@@ -761,6 +767,7 @@ def close_request(
 @router.post("/requests/{request_id}/confirm")
 def confirm_request(
     request_id: int,
+    body: RequestConfirm,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -771,10 +778,15 @@ def confirm_request(
         raise HTTPException(400, "Request must be closed by coder first")
     if r.created_by_id != user.id and not _is_global_admin(user, db):
         raise HTTPException(403, "Only requester can confirm")
+    if body.rating < 1 or body.rating > 5:
+        raise HTTPException(400, "Rating must be between 1 and 5")
 
+    now = datetime.utcnow()
     r.status = "closed"
-    r.confirmed_at = datetime.utcnow()
-    r.updated_at = datetime.utcnow()
+    r.confirmed_at = now
+    r.rating = body.rating
+    r.rated_at = now
+    r.updated_at = now
     db.commit()
     r = (
         db.query(ProjectRequest)
@@ -804,6 +816,9 @@ def reopen_request(
 
     r.status = "in_progress"
     r.closed_at = None
+    r.rating = None
+    r.rated_at = None
+    r.confirmed_at = None
     r.updated_at = datetime.utcnow()
     db.commit()
     r = (

@@ -52,6 +52,16 @@ def main():
             print("Added it_projects.external_url")
         else:
             print("it_projects.external_url already exists")
+        if not column_exists(conn, "project_requests", "rating"):
+            conn.execute(text("ALTER TABLE project_requests ADD COLUMN rating INTEGER"))
+            print("Added project_requests.rating")
+        else:
+            print("project_requests.rating already exists")
+        if not column_exists(conn, "project_requests", "rated_at"):
+            conn.execute(text("ALTER TABLE project_requests ADD COLUMN rated_at TIMESTAMP"))
+            print("Added project_requests.rated_at")
+        else:
+            print("project_requests.rated_at already exists")
     print("Done.")
 
 

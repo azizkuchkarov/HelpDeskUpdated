@@ -80,6 +80,8 @@ class ProjectRequest(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     closed_at = Column(DateTime, nullable=True)
     confirmed_at = Column(DateTime, nullable=True)
+    rating = Column(Integer, nullable=True)  # 1–5 stars from requester
+    rated_at = Column(DateTime, nullable=True)
 
     project = relationship("ITProject", back_populates="requests")
     created_by = relationship("User", foreign_keys=[created_by_id])

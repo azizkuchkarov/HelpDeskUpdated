@@ -463,14 +463,24 @@ export default function ProjectManagementClient({
     }
   }
 
-  async function actOnRequest(action: "take" | "close" | "confirm" | "reopen", req: ProjectRequest) {
+  async function actOnRequest(
+    action: "take" | "close" | "confirm" | "reopen",
+    req: ProjectRequest,
+    rating?: number
+  ) {
     setSubmitting(true);
     try {
       let updated: ProjectRequest;
       if (action === "take") updated = await pmApi.takeRequest(req.id);
       else if (action === "close") updated = await pmApi.closeRequest(req.id);
-      else if (action === "confirm") updated = await pmApi.confirmRequest(req.id);
-      else updated = await pmApi.reopenRequest(req.id);
+      else if (action === "confirm") {
+        if (!rating || rating < 1 || rating > 5) {
+          setError(t("projectManagement.ratingRequired"));
+          setSubmitting(false);
+          return;
+        }
+        updated = await pmApi.confirmRequest(req.id, rating);
+      } else updated = await pmApi.reopenRequest(req.id);
       setSelectedRequest(updated);
       await refreshActive();
     } catch (err) {
@@ -1259,7 +1269,7 @@ function ProjectDetail(props: {
   onNewChange: () => void;
   onNewTask: () => void;
   onReportBug: (taskId: number | null) => void;
-  onAct: (a: "take" | "close" | "confirm" | "reopen", r: ProjectRequest) => void;
+  onAct: (a: "take" | "close" | "confirm" | "reopen", r: ProjectRequest, rating?: number) => void;
   onTaskStatus: (task: TesterTask, status: string) => void;
   onRequestDeadline: (r: ProjectRequest) => void;
   onComment: (e: React.FormEvent) => void;
@@ -1561,15 +1571,28 @@ function ProjectDetail(props: {
                                 className="w-full rounded-lg bg-slate-50 px-3 py-2 text-left text-sm hover:bg-slate-100"
                                 onClick={() => setSelectedRequest(b)}
                               >
-                                PM-{b.id}: {b.title}{" "}
-                                <StatusBadge
-                                  status={b.status}
-                                  label={
-                                    b.status === "closed_by_coder"
-                                      ? t("projectManagement.closedByCoder")
-                                      : undefined
-                                  }
-                                />
+                                <span className="flex flex-wrap items-center gap-2">
+                                  <span>
+                                    PM-{b.id}: {b.title}
+                                  </span>
+                                  <PriorityBadge priority={b.priority} />
+                                  <StatusBadge
+                                    status={b.status}
+                                    label={
+                                      b.status === "closed_by_coder"
+                                        ? t("projectManagement.closedByCoder")
+                                        : undefined
+                                    }
+                                  />
+                                  {b.rating != null && <StarDisplay value={b.rating} />}
+                                </span>
+                                <span className="mt-1 block text-xs text-slate-500">
+                                  {t("projectManagement.openedAt")}:{" "}
+                                  {b.created_at ? formatDateUTC5(b.created_at) : "—"}
+                                  {b.closed_at
+                                    ? ` · ${t("projectManagement.closedAt")}: ${formatDateUTC5(b.closed_at)}`
+                                    : ""}
+                                </span>
                               </button>
                             </li>
                           ))}
@@ -1654,6 +1677,9 @@ function RequestList({
             <th className="px-4 py-3">{t("projectManagement.colSummary")}</th>
             <th className="px-4 py-3">{t("projectManagement.colPriority")}</th>
             <th className="px-4 py-3">{t("projectManagement.colStatus")}</th>
+            <th className="px-4 py-3">{t("projectManagement.colOpenedAt")}</th>
+            <th className="px-4 py-3">{t("projectManagement.colClosedAt")}</th>
+            <th className="px-4 py-3">{t("projectManagement.colRating")}</th>
             <th className="px-4 py-3">{t("projectManagement.colAssignee")}</th>
           </tr>
         </thead>
@@ -1681,6 +1707,15 @@ function RequestList({
                   }
                 />
               </td>
+              <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
+                {r.created_at ? formatDateUTC5(r.created_at) : "—"}
+              </td>
+              <td className="whitespace-nowrap px-4 py-3 text-xs text-slate-500">
+                {r.closed_at ? formatDateUTC5(r.closed_at) : "—"}
+              </td>
+              <td className="px-4 py-3">
+                {r.rating ? <StarDisplay value={r.rating} /> : "—"}
+              </td>
               <td className="px-4 py-3 text-slate-600">
                 {r.assigned_coder_name || t("projectManagement.unassigned")}
               </td>
@@ -1705,7 +1740,7 @@ function RequestDrawer(props: {
   setCommentBody: (v: string) => void;
   uploading: boolean;
   onClose: () => void;
-  onAct: (a: "take" | "close" | "confirm" | "reopen", r: ProjectRequest) => void;
+  onAct: (a: "take" | "close" | "confirm" | "reopen", r: ProjectRequest, rating?: number) => void;
   onRequestDeadline: (r: ProjectRequest) => void;
   onComment: (e: React.FormEvent) => void;
   onUpload: (files: FileList | null) => void;
@@ -1731,6 +1766,12 @@ function RequestDrawer(props: {
     onDownload,
   } = props;
 
+  const [confirmRating, setConfirmRating] = useState(0);
+
+  useEffect(() => {
+    setConfirmRating(0);
+  }, [req.id]);
+
   return (
     <aside className="rounded-card border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -1746,9 +1787,38 @@ function RequestDrawer(props: {
         <StatusBadge status={req.status} />
         <PriorityBadge priority={req.priority} />
       </div>
-      <p className="mb-2 text-sm text-slate-600">
-        {t("projectManagement.colRequester")}: {req.created_by_name}
-      </p>
+      <dl className="mb-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+        <div>
+          <dt className="text-xs uppercase text-slate-500">{t("projectManagement.colRequester")}</dt>
+          <dd className="text-slate-800">{req.created_by_name || "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase text-slate-500">{t("projectManagement.priority")}</dt>
+          <dd>
+            <PriorityBadge priority={req.priority} />
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase text-slate-500">{t("projectManagement.openedAt")}</dt>
+          <dd className="text-slate-800">
+            {req.created_at ? formatDateUTC5(req.created_at) : "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs uppercase text-slate-500">{t("projectManagement.closedAt")}</dt>
+          <dd className="text-slate-800">
+            {req.closed_at ? formatDateUTC5(req.closed_at) : "—"}
+          </dd>
+        </div>
+        {req.rating != null && (
+          <div className="sm:col-span-2">
+            <dt className="text-xs uppercase text-slate-500">{t("projectManagement.rating")}</dt>
+            <dd className="mt-0.5">
+              <StarDisplay value={req.rating} />
+            </dd>
+          </div>
+        )}
+      </dl>
       <p className="mb-3 whitespace-pre-wrap text-sm text-slate-700">
         {req.description || "—"}
       </p>
@@ -1774,24 +1844,33 @@ function RequestDrawer(props: {
           </button>
         )}
         {req.status === "closed_by_coder" && req.created_by_id === userId && (
-          <>
-            <button
-              type="button"
-              className={btnPrimary}
-              disabled={submitting}
-              onClick={() => onAct("confirm", req)}
-            >
-              {t("projectManagement.confirmClose")}
-            </button>
-            <button
-              type="button"
-              className={btnSecondary}
-              disabled={submitting}
-              onClick={() => onAct("reopen", req)}
-            >
-              {t("projectManagement.reopen")}
-            </button>
-          </>
+          <div className="w-full space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <div>
+              <p className="text-sm font-medium text-slate-800">{t("projectManagement.rateWork")}</p>
+              <p className="mt-0.5 text-xs text-slate-600">{t("projectManagement.rateWorkHint")}</p>
+              <div className="mt-2">
+                <StarPicker value={confirmRating} onChange={setConfirmRating} />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={btnPrimary}
+                disabled={submitting || confirmRating < 1}
+                onClick={() => onAct("confirm", req, confirmRating)}
+              >
+                {t("projectManagement.confirmClose")}
+              </button>
+              <button
+                type="button"
+                className={btnSecondary}
+                disabled={submitting}
+                onClick={() => onAct("reopen", req)}
+              >
+                {t("projectManagement.reopen")}
+              </button>
+            </div>
+          </div>
         )}
         {isMonitor && (
           <button type="button" className={btnSecondary} onClick={() => onRequestDeadline(req)}>
@@ -1867,6 +1946,48 @@ function RequestDrawer(props: {
         </label>
       </div>
     </aside>
+  );
+}
+
+function StarDisplay({ value }: { value: number }) {
+  return (
+    <span className="inline-flex items-center gap-0.5" aria-label={`${value}/5`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <span
+          key={n}
+          className={`text-base leading-none ${n <= value ? "text-amber-500" : "text-slate-300"}`}
+        >
+          ★
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function StarPicker({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div className="inline-flex items-center gap-1" role="radiogroup" aria-label="Rating">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          type="button"
+          role="radio"
+          aria-checked={value === n}
+          className={`text-2xl leading-none transition ${
+            n <= value ? "text-amber-500" : "text-slate-300 hover:text-amber-400"
+          }`}
+          onClick={() => onChange(n)}
+        >
+          ★
+        </button>
+      ))}
+    </div>
   );
 }
 
