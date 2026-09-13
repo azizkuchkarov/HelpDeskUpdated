@@ -12,6 +12,7 @@ import {
   type PMMonitoring,
   type PMUserOption,
   type PMInformation,
+  type PMTeamInfo,
   type TesterTask,
 } from "@/lib/api";
 import StatusBadge from "@/components/jira/StatusBadge";
@@ -1111,50 +1112,235 @@ function InformationView({
       </div>
     );
   }
+
+  const byRole = (role: string) =>
+    info.team
+      .filter((r) => r.role_type === role)
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id);
+
+  const managers = byRole("pm_manager");
+  const leaders = byRole("pm_team_leader");
+  const monitors = byRole("pm_deadline_monitor");
+  const coders = byRole("pm_coder");
+  const testers = byRole("pm_tester");
+  const known = new Set([
+    "pm_manager",
+    "pm_team_leader",
+    "pm_deadline_monitor",
+    "pm_coder",
+    "pm_tester",
+  ]);
+  const other = info.team.filter((r) => !known.has(r.role_type));
+
+  const levels: {
+    key: string;
+    label: string;
+    people: typeof info.team;
+    size: "lg" | "md" | "sm";
+    accent: string;
+  }[] = [
+    {
+      key: "managers",
+      label: t("projectManagement.rolePmManager"),
+      people: managers,
+      size: "lg",
+      accent: "from-primary-600 to-primary-700",
+    },
+    {
+      key: "leaders",
+      label: t("projectManagement.rolePmTeamLeader"),
+      people: leaders,
+      size: "md",
+      accent: "from-sky-600 to-sky-700",
+    },
+    {
+      key: "monitors",
+      label: t("projectManagement.rolePmDeadlineMonitor"),
+      people: monitors,
+      size: "md",
+      accent: "from-amber-600 to-amber-700",
+    },
+    {
+      key: "coders",
+      label: t("projectManagement.rolePmCoder"),
+      people: coders,
+      size: "sm",
+      accent: "from-emerald-600 to-emerald-700",
+    },
+    {
+      key: "testers",
+      label: t("projectManagement.rolePmTester"),
+      people: testers,
+      size: "sm",
+      accent: "from-rose-600 to-rose-700",
+    },
+  ].filter((lvl) => lvl.people.length > 0);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {(info.intro_title || info.intro_body) && (
-        <section className="rounded-card border border-slate-200 bg-white p-6 shadow-sm">
+        <section className="rounded-card border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-primary-50/40 p-6 shadow-sm">
           {info.intro_title && (
             <h2 className="text-xl font-semibold text-slate-900">{info.intro_title}</h2>
           )}
           {info.intro_body && (
-            <p className="mt-3 whitespace-pre-wrap text-slate-700">{info.intro_body}</p>
+            <p className="mt-3 max-w-3xl whitespace-pre-wrap text-slate-700">{info.intro_body}</p>
           )}
         </section>
       )}
+
       <section>
-        <h2 className="mb-3 text-lg font-semibold text-slate-900">
-          {t("projectManagement.teamSection")}
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {info.team.map((row) => (
-            <div
-              key={row.id}
-              className="rounded-card border border-slate-200 bg-white p-5 shadow-sm"
-            >
-              <div className="mb-3 flex items-center gap-3">
-                <TeamPhotoAvatar
-                  infoId={row.id}
-                  hasPhoto={row.has_photo}
-                  name={row.display_name}
+        <div className="mb-6 text-center">
+          <h2 className="text-lg font-semibold text-slate-900">
+            {t("projectManagement.teamHierarchy")}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">{t("projectManagement.teamHierarchyHint")}</p>
+        </div>
+
+        <div className="relative mx-auto max-w-5xl overflow-x-auto rounded-card border border-slate-200 bg-white px-4 py-8 shadow-sm sm:px-8">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-[0.35]"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 1px 1px, rgb(148 163 184 / 0.25) 1px, transparent 0)",
+              backgroundSize: "18px 18px",
+            }}
+          />
+
+          <div className="relative flex flex-col items-center">
+            {levels.map((level, idx) => (
+              <div key={level.key} className="flex w-full flex-col items-center">
+                {idx > 0 && <HierarchyConnector />}
+                <HierarchyLevel
+                  label={level.label}
+                  people={level.people}
+                  size={level.size}
+                  accent={level.accent}
+                  t={t}
                 />
-                <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wider text-primary-700">
-                    {t(ROLE_LABEL_KEYS[row.role_type] || row.role_type)}
-                  </p>
-                  <p className="truncate text-lg font-semibold text-slate-900">{row.display_name}</p>
-                  {row.title && <p className="truncate text-sm text-slate-500">{row.title}</p>}
+              </div>
+            ))}
+
+            {other.length > 0 && (
+              <div className="mt-8 w-full border-t border-slate-100 pt-6">
+                <p className="mb-3 text-center text-xs font-medium uppercase tracking-wider text-slate-500">
+                  {t("projectManagement.teamOther")}
+                </p>
+                <div className="flex flex-wrap justify-center gap-3">
+                  {other.map((row) => (
+                    <PersonCard
+                      key={row.id}
+                      row={row}
+                      size="sm"
+                      accent="from-slate-500 to-slate-600"
+                      t={t}
+                    />
+                  ))}
                 </div>
               </div>
-              {row.description && (
-                <p className="whitespace-pre-wrap text-sm text-slate-600">{row.description}</p>
-              )}
-            </div>
-          ))}
+            )}
+          </div>
         </div>
       </section>
     </div>
+  );
+}
+
+function HierarchyConnector() {
+  return (
+    <div className="flex flex-col items-center py-1" aria-hidden>
+      <div className="h-5 w-px bg-gradient-to-b from-slate-300 to-slate-400" />
+      <div className="size-2 rounded-full border-2 border-primary-400 bg-white shadow-sm" />
+      <div className="h-5 w-px bg-gradient-to-b from-slate-400 to-slate-300" />
+    </div>
+  );
+}
+
+function HierarchyLevel({
+  label,
+  people,
+  size,
+  accent,
+  t,
+}: {
+  label: string;
+  people: PMTeamInfo[];
+  size: "lg" | "md" | "sm";
+  accent: string;
+  t: (k: string) => string;
+}) {
+  return (
+    <div className="w-full">
+      <div className="mb-3 flex items-center justify-center gap-2">
+        <span className={`h-px w-8 bg-gradient-to-r ${accent} opacity-40`} />
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+          {label}
+          {people.length > 1 ? ` · ${people.length}` : ""}
+        </span>
+        <span className={`h-px w-8 bg-gradient-to-l ${accent} opacity-40`} />
+      </div>
+      <div
+        className={`flex flex-wrap justify-center gap-3 sm:gap-4 ${
+          size === "lg" ? "gap-4 sm:gap-6" : ""
+        }`}
+      >
+        {people.map((row) => (
+          <PersonCard key={row.id} row={row} size={size} accent={accent} t={t} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PersonCard({
+  row,
+  size,
+  accent,
+  t,
+}: {
+  row: PMTeamInfo;
+  size: "lg" | "md" | "sm";
+  accent: string;
+  t: (k: string) => string;
+}) {
+  const avatarSize = size === "lg" ? "size-20" : size === "md" ? "size-16" : "size-14";
+  const width =
+    size === "lg"
+      ? "w-[min(100%,17rem)]"
+      : size === "md"
+        ? "w-[min(100%,15rem)]"
+        : "w-[min(100%,13rem)]";
+
+  return (
+    <article
+      className={`${width} group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md`}
+    >
+      <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accent}`} />
+      <div className="mx-auto mb-3 flex justify-center pt-1">
+        <TeamPhotoAvatar
+          infoId={row.id}
+          hasPhoto={row.has_photo}
+          name={row.display_name}
+          sizeClass={avatarSize}
+        />
+      </div>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-primary-700">
+        {t(ROLE_LABEL_KEYS[row.role_type] || row.role_type)}
+      </p>
+      <p
+        className={`mt-1 font-semibold text-slate-900 ${
+          size === "lg" ? "text-lg" : size === "md" ? "text-base" : "text-sm"
+        }`}
+      >
+        {row.display_name}
+      </p>
+      {row.title && <p className="mt-0.5 truncate text-xs text-slate-500">{row.title}</p>}
+      {row.description && (
+        <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-left text-xs leading-relaxed text-slate-600">
+          {row.description}
+        </p>
+      )}
+    </article>
   );
 }
 
