@@ -47,6 +47,11 @@ def main():
             print("Added pm_team_info.photo_path")
         else:
             print("pm_team_info.photo_path already exists")
+        if not column_exists(conn, "it_projects", "external_url"):
+            conn.execute(text("ALTER TABLE it_projects ADD COLUMN external_url VARCHAR(1000)"))
+            print("Added it_projects.external_url")
+        else:
+            print("it_projects.external_url already exists")
     print("Done.")
 
 

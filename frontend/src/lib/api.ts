@@ -575,6 +575,7 @@ export type ITProject = {
   name: string;
   description: string | null;
   info: string | null;
+  external_url: string | null;
   status: string;
   created_by_id: number;
   created_by_name: string | null;
@@ -723,7 +724,7 @@ export const projectManagement = {
     return api<ITProject[]>(`/project-management/projects${qs ? `?${qs}` : ""}`);
   },
   getProject: (id: number) => api<ITProject>("/project-management/projects/" + id),
-  createProject: (body: { name: string; description?: string; info?: string }) =>
+  createProject: (body: { name: string; description?: string; info?: string; external_url?: string }) =>
     api<ITProject>("/project-management/projects", { method: "POST", body: JSON.stringify(body) }),
   updateProject: (
     id: number,
@@ -731,6 +732,7 @@ export const projectManagement = {
       name?: string;
       description?: string;
       info?: string;
+      external_url?: string;
       status?: string;
       deadline?: string | null;
       clear_deadline?: boolean;

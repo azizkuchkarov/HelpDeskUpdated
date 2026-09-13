@@ -12,6 +12,7 @@ class ITProject(Base):
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     info = Column(Text, nullable=True)
+    external_url = Column(String(1000), nullable=True)  # Live system URL (HR, Budget, etc.)
     status = Column(String(50), default="active")  # active, on_hold, completed
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     deadline = Column(Date, nullable=True)

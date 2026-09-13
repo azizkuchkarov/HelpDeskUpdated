@@ -104,6 +104,15 @@ def _parse_date(value: Optional[str]) -> Optional[date]:
         raise HTTPException(400, "Invalid date format (use YYYY-MM-DD)")
 
 
+def _normalize_url(value: Optional[str]) -> Optional[str]:
+    url = (value or "").strip()
+    if not url:
+        return None
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    return url[:1000]
+
+
 def _member_dict(m: ProjectMember) -> dict:
     return {
         "id": m.id,
@@ -121,6 +130,7 @@ def _project_dict(p: ITProject, include_members: bool = False) -> dict:
         "name": p.name,
         "description": p.description,
         "info": p.info,
+        "external_url": p.external_url,
         "status": p.status,
         "created_by_id": p.created_by_id,
         "created_by_name": _user_name(p.created_by),
@@ -208,12 +218,14 @@ class ProjectCreate(BaseModel):
     name: str
     description: Optional[str] = None
     info: Optional[str] = None
+    external_url: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     info: Optional[str] = None
+    external_url: Optional[str] = None
     status: Optional[str] = None
     deadline: Optional[str] = None
     clear_deadline: Optional[bool] = None
@@ -352,6 +364,7 @@ def create_project(
         name=name,
         description=(d.description or "").strip() or None,
         info=(d.info or "").strip() or None,
+        external_url=_normalize_url(d.external_url),
         status="active",
         created_by_id=user.id,
     )
@@ -402,7 +415,13 @@ def update_project(
     is_manager = _is_pm_manager(user, db)
     is_monitor = _is_deadline_monitor(user, db)
 
-    if d.name is not None or d.description is not None or d.info is not None or d.status is not None:
+    if (
+        d.name is not None
+        or d.description is not None
+        or d.info is not None
+        or d.external_url is not None
+        or d.status is not None
+    ):
         if not is_manager:
             raise HTTPException(403, "Project Manager only")
         if d.name is not None:
@@ -414,6 +433,8 @@ def update_project(
             p.description = d.description.strip() or None
         if d.info is not None:
             p.info = d.info.strip() or None
+        if d.external_url is not None:
+            p.external_url = _normalize_url(d.external_url) if d.external_url.strip() else None
         if d.status is not None:
             if d.status not in VALID_PROJECT_STATUSES:
                 raise HTTPException(400, f"Invalid status. Use: {', '.join(VALID_PROJECT_STATUSES)}")

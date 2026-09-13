@@ -91,6 +91,7 @@ export default function ProjectManagementClient({
     name: "",
     description: "",
     info: "",
+    external_url: "",
     status: "active",
   });
   const [memberUserId, setMemberUserId] = useState<number | "">("");
@@ -312,9 +313,10 @@ export default function ProjectManagementClient({
         name: projectForm.name.trim(),
         description: projectForm.description.trim() || undefined,
         info: projectForm.info.trim() || undefined,
+        external_url: projectForm.external_url.trim() || undefined,
       });
       setModal(null);
-      setProjectForm({ name: "", description: "", info: "", status: "active" });
+      setProjectForm({ name: "", description: "", info: "", external_url: "", status: "active" });
       setProjectsLoaded(true);
       await loadProjects(false);
       router.push(`/project-management/${p.id}`);
@@ -334,6 +336,7 @@ export default function ProjectManagementClient({
         name: projectForm.name.trim(),
         description: projectForm.description.trim() || undefined,
         info: projectForm.info.trim() || undefined,
+        external_url: projectForm.external_url.trim() || "",
         status: projectForm.status,
       });
       setModal(null);
@@ -573,6 +576,7 @@ export default function ProjectManagementClient({
               name: activeProject.name,
               description: activeProject.description || "",
               info: activeProject.info || "",
+              external_url: activeProject.external_url || "",
               status: activeProject.status,
             });
             setModal("edit-project");
@@ -661,7 +665,7 @@ export default function ProjectManagementClient({
           isPM={isPM}
           onOpen={openProject}
           onNew={() => {
-            setProjectForm({ name: "", description: "", info: "", status: "active" });
+            setProjectForm({ name: "", description: "", info: "", external_url: "", status: "active" });
             setModal("new-project");
           }}
         />
@@ -686,6 +690,16 @@ export default function ProjectManagementClient({
                 value={projectForm.description}
                 onChange={(e) => setProjectForm((f) => ({ ...f, description: e.target.value }))}
               />
+            </Field>
+            <Field label={t("projectManagement.externalUrl")}>
+              <input
+                className={inputClass}
+                type="url"
+                placeholder={t("projectManagement.externalUrlPlaceholder")}
+                value={projectForm.external_url}
+                onChange={(e) => setProjectForm((f) => ({ ...f, external_url: e.target.value }))}
+              />
+              <p className="mt-1 text-xs text-slate-500">{t("projectManagement.externalUrlHint")}</p>
             </Field>
             <Field label={t("projectManagement.projectInfo")}>
               <textarea
@@ -723,6 +737,16 @@ export default function ProjectManagementClient({
                 value={projectForm.description}
                 onChange={(e) => setProjectForm((f) => ({ ...f, description: e.target.value }))}
               />
+            </Field>
+            <Field label={t("projectManagement.externalUrl")}>
+              <input
+                className={inputClass}
+                type="url"
+                placeholder={t("projectManagement.externalUrlPlaceholder")}
+                value={projectForm.external_url}
+                onChange={(e) => setProjectForm((f) => ({ ...f, external_url: e.target.value }))}
+              />
+              <p className="mt-1 text-xs text-slate-500">{t("projectManagement.externalUrlHint")}</p>
             </Field>
             <Field label={t("projectManagement.projectInfo")}>
               <textarea
@@ -1168,11 +1192,33 @@ function ProjectsList({
               {p.description && (
                 <p className="mt-2 line-clamp-2 text-sm text-slate-600">{p.description}</p>
               )}
+              {p.external_url && (
+                <p className="mt-2 truncate text-xs text-primary-600">{p.external_url}</p>
+              )}
               <p className="mt-3 text-xs text-slate-500">
                 {t("projectManagement.coders")}: {p.coder_count ?? 0} ·{" "}
                 {t("projectManagement.testers")}: {p.tester_count ?? 0}
                 {p.deadline ? ` · ${t("projectManagement.deadline")}: ${p.deadline}` : ""}
               </p>
+              {p.external_url && (
+                <span
+                  role="link"
+                  tabIndex={0}
+                  className="mt-3 inline-flex text-sm font-medium text-primary-700 underline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    window.open(p.external_url!, "_blank", "noopener,noreferrer");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.stopPropagation();
+                      window.open(p.external_url!, "_blank", "noopener,noreferrer");
+                    }
+                  }}
+                >
+                  {t("projectManagement.openSystem")} ↗
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -1328,6 +1374,23 @@ function ProjectDetail(props: {
 
       {detailTab === "overview" && (
         <div className="space-y-6">
+          {project.external_url && (
+            <section className="rounded-card border border-primary-200 bg-primary-50 p-5 shadow-sm">
+              <h3 className="mb-2 text-sm font-medium uppercase tracking-wider text-primary-700">
+                {t("projectManagement.externalUrl")}
+              </h3>
+              <a
+                href={project.external_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 break-all text-base font-medium text-primary-700 underline hover:text-primary-900"
+              >
+                {project.external_url}
+                <span aria-hidden>↗</span>
+              </a>
+              <p className="mt-2 text-xs text-slate-600">{t("projectManagement.openSystemHint")}</p>
+            </section>
+          )}
           <section className="rounded-card border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="mb-2 text-sm font-medium uppercase tracking-wider text-slate-500">
               {t("projectManagement.projectInfo")}
